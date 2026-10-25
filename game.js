@@ -1,6 +1,6 @@
 import { S, initShop, bindUI, openCatalog, openProduct, openCart, openCheckout, openReceipt, hasReceipt, closePanel, panelOpen, cartCount, showRaw, getBannerText, rp, MAIN_ORIGIN, logout, esc } from './shop.js?v=20261032';
-import { initPhone } from './phone.js?v=20261032';
-import { buildOffice } from './office.js?v=1';
+import { initPhone } from './phone.js?v=20261033';
+import { buildOffice } from './office.js?v=2';
 let OFF = null;
 const $ = s => document.querySelector(s);
 const cv = $('#game');
@@ -409,7 +409,7 @@ function buildWorld() {
     const th = part(new THREE.CapsuleGeometry(.016, .04, 3, 6), hm(0xd9b08c), .4); th.position.x = -.05 * s; th.rotation.z = .6 * s;
   });
   FPH.visible = false;
-  try { OFF = buildOffice({ THREE, scene, M, ctex, tm, T, bx, pln, makeHuman, animHuman, say, S, toast, getHangers: () => hangers, getSolids: () => solids, lightsQ, SPOTS, STATIC: STATIC_SOLIDS, openProduct, closePanel }); } catch (e) { console.error('office gagal', e); OFF = null; }
+  try { OFF = buildOffice({ THREE, scene, M, ctex, tm, T, bx, pln, makeHuman, animHuman, say, S, toast, getHangers: () => hangers, getSolids: () => solids, lightsQ, SPOTS, STATIC: STATIC_SOLIDS, openProduct, closePanel, CM }); } catch (e) { console.error('office gagal', e); OFF = null; }
   placeMirror(MIRI); bakeStatic();
 }
 function drawScreen() {
@@ -511,11 +511,14 @@ function kick() { beep('kick'); const dx = ball.x - pl.x, dz = ball.z - pl.z, l 
 
 /* ---------- pemain, kamera, input ---------- */
 const pl = { x: -2.6, z: 1.2, ry: Math.PI, walk: 0, moving: false }, cam = { yaw: 0, pitch: .06 };
-let fp = localStorage.getItem('fvckgame.fp') === '1';
-const setFP = v => { fp = v; localStorage.setItem('fvckgame.fp', v ? '1' : '0'); $('#bView').textContent = v ? 'FPV' : 'TPV'; };
-setFP(fp);
-$('#bView').addEventListener('click', () => { setFP(!fp); beep('step'); });
-addEventListener('keydown', e => { if (!paused && (e.key === 'v' || e.key === 'V')) setFP(!fp); });
+const VMS = ['tpv', 'fpv', 'atas']; let vm = localStorage.getItem('fvckgame.vm') || 'tpv'; if (!VMS.includes(vm)) vm = 'tpv';
+let fp = vm === 'fpv', topv = vm === 'atas', topD = 12;
+const setVM = v => { vm = v; fp = v === 'fpv'; topv = v === 'atas'; localStorage.setItem('fvckgame.vm', v); $('#bView').textContent = v.toUpperCase(); };
+setVM(vm);
+const nextVM = () => setVM(VMS[(VMS.indexOf(vm) + 1) % 3]);
+$('#bView').addEventListener('click', () => { nextVM(); beep('step'); });
+addEventListener('keydown', e => { if (!paused && (e.key === 'v' || e.key === 'V')) nextVM(); });
+addEventListener('wheel', e => { if (topv) topD = Math.max(6, Math.min(20, topD + e.deltaY * .01)); }, { passive: true });
 addEventListener('keydown', e => {
   if (e.key === 'Escape') { if (phone.isOpen()) phone.close(); else if ($('#say')) closeSay(); else if (panelOpen()) closePanel(); return; }
   if ((e.key === 'p' || e.key === 'P') && started && !panelOpen() && !$('#say')) { phone.toggle(); return; }
@@ -579,12 +582,13 @@ function update(dt) {
 }
 
 /* ---------- kamera + gambar tiap frame ---------- */
-const camPos = THREE ? new THREE.Vector3() : null, camTar = THREE ? new THREE.Vector3() : null; let camInit = false, lastFP = false, frameNo = 0, photoT = 0;
+const camPos = THREE ? new THREE.Vector3() : null, camTar = THREE ? new THREE.Vector3() : null; let camInit = false, lastFP = false, lastTV = false, frameNo = 0, photoT = 0;
 function updateCamera(dt) {
   const act = started, yaw = act ? cam.yaw : t * .15, fpv = fp && act;
-  const lim = fpv ? 1.25 : .8, lo = fpv ? -1.25 : -.4; if (act) cam.pitch = Math.max(lo, Math.min(lim, cam.pitch));
+  const lim = fpv ? 1.25 : .8, lo = fpv ? -1.25 : -.4; if (act && !topv) cam.pitch = Math.max(lo, Math.min(lim, cam.pitch));
   const p = act ? cam.pitch : .08, cp = Math.cos(p), sp = Math.sin(p), sy = Math.sin(yaw), cyw = Math.cos(yaw);
   const dir = [sy * cp, sp, -cyw * cp], rgt = [cyw, 0, sy], px = act ? pl.x : 0, pz = act ? pl.z : 0;
+  const tv = topv && act; if (tv !== lastTV) { camInit = false; lastTV = tv; }
   if (fpv !== lastFP) { camInit = false; lastFP = fpv; }
   const bob = pl.moving ? Math.sin(pl.walk * 2) * .03 : Math.sin(t * 1.6) * .006;
   if (fpv) {
@@ -592,6 +596,10 @@ function updateCamera(dt) {
     camera.position.set(ex, ey, ez); camera.lookAt(ex + dir[0], ey + dir[1], ez + dir[2]);
     FPI.position.set(Math.sin(pl.walk) * (pl.moving ? .012 : 0), (pl.moving ? Math.abs(Math.sin(pl.walk)) * .015 : Math.sin(t * 1.1) * .004), 0);
     camera.updateMatrixWorld(); FPH.position.copy(camera.position); FPH.quaternion.copy(camera.quaternion);
+  } else if (tv) {                                   // tampilan atas (2D-isometrik): kamera tinggi, miring ke bawah, ikut pemain
+    const ca = Math.cos(.95), sa = Math.sin(.95), cx = px - sy * ca * topD, cy = sa * topD, cz = pz + cyw * ca * topD;
+    if (!camInit) { camPos.set(cx, cy, cz); camInit = true; } else camPos.lerp(new THREE.Vector3(cx, cy, cz), 1 - Math.exp(-dt * 8));
+    camera.position.copy(camPos); camera.lookAt(px, .6, pz);
   } else {
     const dist0 = act ? 2.5 : 5.4, off = act ? .38 : 0, ty = act ? 1.5 : 1.3;
     const inside = (x, y, z) => (x > -7.75 && x < 7.75 && z > -5.8 && z < 5.8 && y > .3 && y < 3.2) || (OFF && OFF.inside(x, y, z));
@@ -608,7 +616,7 @@ function render(dt) {
   PM.g.visible = !fpv; PM.g.position.set(pl.x, 0, pl.z); PM.g.rotation.y = pl.ry; animHuman(PM, pl.walk, pl.moving);
   blob.visible = !fpv && Q === 0; blob.position.set(pl.x, .012, pl.z);
   FPH.visible = fpv;
-  CM.aL.rotation.x = Math.sin(t * 1.4) * .05; CM.aR.rotation.x = -Math.sin(t * 1.4) * .05; CM.g.rotation.y = Math.sin(t * .4) * .25;
+  if (!OFF) { CM.aL.rotation.x = Math.sin(t * 1.4) * .05; CM.aR.rotation.x = -Math.sin(t * 1.4) * .05; CM.g.rotation.y = Math.sin(t * .4) * .25; }
   ballM.position.set(ball.x, .28, ball.z); ballM.rotation.z -= ball.vx * dt / .28; ballM.rotation.x += ball.vz * dt / .28;
   hGroups.forEach(o => { const on = hot === o.h; o.g.rotation.x = Math.sin(t * 1.3 + o.h.ph) * .016 + (on ? Math.sin(t * 6) * .04 : 0); });
   if (t - photoT > .5) { photoT = t; photoTick(); }

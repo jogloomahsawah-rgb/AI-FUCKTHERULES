@@ -1,3 +1,4 @@
+import { renderAI } from './aichat.js?v=1';
 // phone.js — "HP" di dalam game: Berita & Diskusi diambil dari Firebase JURNAL (fvck-journal) milik web utama.
 // Hanya BACA (read-only), memakai query yang sama persis dengan journal.js di web utama. Membalas/bereaksi tetap lewat web utama.
 import { S, PAY, rp, MAIN_ORIGIN } from './shop.js?v=20261032';
@@ -96,6 +97,7 @@ export function initPhone({ onOpen, onClose, onWeb } = {}) {
     app.className = 'ph-app ph-homebg';
     app.innerHTML = `<div class="ph-widget"><div class="ph-bigtime">${tm}</div><div class="ph-date">${esc(dt)}</div></div>
     <div class="ph-grid">
+      <button data-open="ai"><span class="ph-ic" style="background:#111;color:#e8ff3a;font:900 20px Impact,sans-serif">AI</span><em>AI</em></button>
       <button data-open="berita"><span class="ph-ic" style="background:#ffca1f;color:#111">${ICON.news}</span><em>Berita</em></button>
       <button data-open="diskusi"><span class="ph-ic" style="background:#45e08f;color:#111">${ICON.chat}</span><em>Diskusi</em></button>
       <button data-open="lacak"><span class="ph-ic" style="background:#ffe1b0;color:#111">${ICON.pack}</span><em>Lacak</em></button>
@@ -216,7 +218,7 @@ export function initPhone({ onOpen, onClose, onWeb } = {}) {
     if (!webOn) { webOn = true; onWeb && onWeb(true); }                  // game berhenti menggambar 3D selama browser HP aktif (hemat baterai)
   }
 
-  function render() { if (view.n !== 'web' && webOn) { webOn = false; clearTimeout(wt); onWeb && onWeb(false); } clock(); root.querySelector('.ph-screen').classList.toggle('home', view.n === 'home'); ({ home: renderHome, berita: renderBerita, diskusi: renderDiskusi, artikel: () => renderArticle(view.id), web: renderWeb, lacak: () => renderOrder('lacak'), resi: () => renderOrder('resi'), pel: () => renderOrder('pel') })[view.n](); }
+  function render() { if (view.n !== 'web' && webOn) { webOn = false; clearTimeout(wt); onWeb && onWeb(false); } clock(); root.querySelector('.ph-screen').classList.toggle('home', view.n === 'home'); ({ home: renderHome, berita: renderBerita, diskusi: renderDiskusi, artikel: () => renderArticle(view.id), ai: () => renderAI(app), web: renderWeb, lacak: () => renderOrder('lacak'), resi: () => renderOrder('resi'), pel: () => renderOrder('pel') })[view.n](); }
 
   app.addEventListener('click', async e => {
     const t = e.target.closest('button, .ph-card'); if (!t) return;

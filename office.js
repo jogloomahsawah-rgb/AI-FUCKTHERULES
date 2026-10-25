@@ -1,9 +1,10 @@
 /* AI OFFICE — ruangan kedua di sisi kanan toko, tersambung lewat pintu di dinding kanan (x=8.1, z=1.6).
    Isi: 8 agen AI di meja, KASIR-AI (laporan), dan STOK-BOT yang patroli di toko. Data = produk publik toko. */
-const AI_WORKER = '';   // opsional: URL Worker (mis. https://fvck-ai.xxx.workers.dev) untuk laporan ORDER (khusus admin)
+import { WORKER, WORKER_OK } from './config.js?v=1';
+import { getToken, A } from './aichat.js?v=1';
 
 export function buildOffice(X) {
-  const { THREE, scene, M, ctex, tm, T, bx, pln, makeHuman, animHuman, say, S, getHangers, getSolids, lightsQ, SPOTS, STATIC } = X;
+  const { THREE, scene, M, ctex, tm, T, bx, pln, makeHuman, animHuman, say, S, getHangers, getSolids, lightsQ, SPOTS, STATIC, CM } = X;
   const X0 = 8.2, X1 = 22, CX = (X0 + X1) / 2, W = X1 - X0;
   const black = M({ color: 0x0c0c0c, roughness: .7 }), metal = M({ color: 0x151515, metalness: .8, roughness: .35 });
   const basic = c => new THREE.MeshBasicMaterial({ color: c });
@@ -64,16 +65,28 @@ export function buildOffice(X) {
   const rep = () => { const P = S.products || [], A = S.acc || [], c = b => P.filter(p => p.badge === b).length, low = P.filter(p => p.badge === 'ready' && p.stock.length <= 1).map(p => p.name);
     return `Kaos: ${P.length} (ready ${c('ready')} · PO ${c('pre')} · arsip ${c('sold')}). Aksesoris: ${A.length}.\n` + (low.length ? 'Ukuran hampir habis: ' + low.slice(0, 5).join(', ') + '.' : 'Tidak ada ready stock yang ukurannya tinggal 1.'); };
   async function orderRep() {
-    if (!AI_WORKER) return say('LAPORAN ORDER', 'Laporan order butuh Worker AI + login admin. Isi AI_WORKER di office.js (lihat README).');
-    const u = S.user; if (!u || !u.getIdToken) return say('LAPORAN ORDER', 'Login admin dulu lewat langkah checkout di kasir.');
+    if (!WORKER_OK) return say('LAPORAN ORDER', 'URL Worker belum diisi di config.js (lihat panduan).');
+    if (!A.ok) return say('LAPORAN ORDER', 'Login admin dulu.');
     say('LAPORAN ORDER', 'Menghitung...');
-    try { const r = await fetch(AI_WORKER + '/chat', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + await u.getIdToken() }, body: JSON.stringify({ readonly: true, messages: [{ role: 'user', text: 'Ringkas order: jumlah per status dan yang belum lunas. Singkat.' }] }) });
+    try { const r = await fetch(WORKER + '/chat', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + await getToken() }, body: JSON.stringify({ readonly: true, messages: [{ role: 'user', text: 'Ringkas order: jumlah per status dan yang belum lunas. Singkat.' }] }) });
       const j = await r.json(); say('LAPORAN ORDER', j.reply || 'Error: ' + j.error); } catch (e) { say('LAPORAN ORDER', 'Gagal: ' + e.message); } }
-  /* KASIR-AI */
-  desk(10.2, 4.6, 2.2); pln(1.4, .35, sign('LAPORAN'), 10.2, 1.3, 4.08, Math.PI);
-  const kc = makeHuman({ top: 0x0a0a0a, pants: 0x1a1a1a, shoes: 0x111111, cap: 0x0a0a0a }); kc.g.position.set(10.2, 0, 5.4); kc.g.rotation.y = Math.PI; scene.add(kc.g);
-  const kl = mkLab(); kl.position.set(10.2, 2.45, 5.4); kl.draw('KASIR-AI', 'laporan harian', true);
-  SPOTS.push({ id: 'laporan', x: 10.2, z: 3.3, lim: 1.5, t: 'PRESS E · KASIR-AI · LAPORAN', go: () => say('KASIR-AI · LAPORAN', rep(), [['LAPORAN ORDER', orderRep], ['TUTUP']]) });
+  /* KASIR-AI: berdiri di kasir toko, lalu berjalan ke kantor untuk melapor ke manager (ORCHESTRATOR) */
+  const kl = mkLab(); kl.draw('KASIR-AI', 'jaga kasir', true);
+  const HOME = { x: 5, z: 2.75 }, MGR = { x: 15.1, z: -2.3 };
+  const GO = [HOME, { x: 6.9, z: 2.75 }, { x: 7.3, z: 1.6 }, { x: 9.6, z: 1.6 }, { x: 12.6, z: 1.0 }, { x: 12.6, z: -2.2 }, MGR];
+  const ks = { st: 'idle', t: 8, i: 0, walk: 0, mv: false, rep: 0 };
+  const kp = CM.g.position, kSpot = { id: 'laporan', x: HOME.x, z: HOME.z, lim: 1.6, t: 'PRESS E · KASIR-AI · LAPORAN', go: () => say('KASIR-AI · LAPORAN', rep(), [['LAPORAN ORDER', orderRep], ['TUTUP']]) };
+  SPOTS.push(kSpot);
+  function kasirTick(dt) {
+    ks.mv = false;
+    if (ks.st === 'idle') { ks.t -= dt; CM.g.rotation.y = Math.sin(ks.walk * .05) * .0; if (ks.t <= 0) { ks.st = 'out'; ks.i = 1; kl.draw('KASIR-AI', 'lapor ke manager', true); } }
+    else if (ks.st === 'out' || ks.st === 'back') {
+      const w = GO[ks.i], dx = w.x - kp.x, dz = w.z - kp.z, d = Math.hypot(dx, dz), v = 1.5 * dt;
+      if (d < .12) { if (ks.st === 'out') { if (ks.i === GO.length - 1) { ks.st = 'talk'; ks.t = 6; CM.g.rotation.y = Math.PI; const m = rep().split('\n')[0]; kl.draw('LAPORAN', m.slice(0, 30), true); } else ks.i++; } else { if (ks.i === 0) { ks.st = 'idle'; ks.t = 20 + Math.random() * 15; CM.g.rotation.y = 0; kl.draw('KASIR-AI', 'jaga kasir', true); } else ks.i--; } }
+      else { kp.x += dx / d * v; kp.z += dz / d * v; ks.mv = true; ks.walk += dt * 7; CM.g.rotation.y = Math.atan2(dx, dz); } }
+    else if (ks.st === 'talk') { ks.t -= dt; if (ks.t <= 0) { ks.st = 'back'; ks.i = GO.length - 2; kl.draw('KASIR-AI', 'balik ke kasir', true); } }
+    animHuman(CM, ks.walk, ks.mv); if (ks.st === 'talk') { CM.aR.rotation.x = -1.2 + Math.sin(ks.walk + performance.now() / 150) * .25; }
+    kl.position.set(kp.x, 2.35, kp.z); kSpot.x = kp.x; kSpot.z = kp.z; }
 
   /* STOK-BOT: patroli di toko, cek hanger satu per satu */
   const bot = makeHuman({ top: 0x2f6bff, pants: 0x1a1a1a, shoes: 0xe8ff3a, cap: 0x2f6bff }); bot.g.position.set(-2.6, 0, 3.8); scene.add(bot.g);
@@ -94,7 +107,7 @@ export function buildOffice(X) {
 
   setInterval(() => { const a = AGS[Math.random() * AGS.length | 0]; setA(a, !a.w); tok += AGS.filter(q => q.w).length * (40 + Math.random() * 60 | 0); drawB(); }, 1800); drawB();
   return {
-    solids: [], update(t, dt) { AGS.forEach(a => { const w = a.w ? 1 : 0; a.h.aL.rotation.x = w ? -.8 + Math.sin(t * 10 + a.i) * .12 : 0; a.h.aR.rotation.x = w ? -.8 + Math.cos(t * 9 + a.i) * .12 : 0; }); kc.aL.rotation.x = Math.sin(t * 1.4) * .05; botTick(dt); },
+    solids: [], update(t, dt) { AGS.forEach(a => { const w = a.w ? 1 : 0; a.h.aL.rotation.x = w ? -.8 + Math.sin(t * 10 + a.i) * .12 : 0; a.h.aR.rotation.x = w ? -.8 + Math.cos(t * 9 + a.i) * .12 : 0; }); kasirTick(dt); botTick(dt); },
     inside: (x, y, z) => y > .3 && y < 3.2 && ((x > 8.3 && x < 21.9 && z > -5.9 && z < 5.9) || (x > 7.75 && x <= 8.3 && z > 1 && z < 2.2)),
     clamp(p, RW, RZN, RZP) {
       const inDoor = p.z > 1 && p.z < 2.2; p.x = Math.max(-RW + .1, Math.min(21.4, p.x));

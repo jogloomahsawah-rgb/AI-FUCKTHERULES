@@ -1,3 +1,3 @@
 # ai.fucktherules.my.id
-Dunia 3D: TOKO (salinan game) + pintu + OFFICE AI. Tombol "AI CHAT" membuka chat.html.
-Semua file ada di satu level (tanpa folder). Ganti URL Worker di `chat.html` (cari GANTI-SUBDOMAIN). Opsional: `AI_WORKER` di `office.js`.
+Kantor AI 3D KHUSUS ADMIN (bukan untuk pelanggan). Login Google admin dulu. Chat AI ada di aplikasi "AI" di dalam HP (tombol HP di atas).
+Isi URL Worker di `config.js` (cari GANTI-SUBDOMAIN).

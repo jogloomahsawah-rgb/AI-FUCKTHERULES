@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<title>FVCKTHERULES — ENTER THE STORE</title>
-<meta name="description" content="Toko virtual FVCKTHERULES. Soccer culture. Street attitude. Born to Disobey.">
+<title>FVCKTHERULES AI OFFICE (admin)</title>
+<meta name="robots" content="noindex,nofollow"><meta name="description" content="Kantor AI FVCKTHERULES, khusus admin.">
 <meta name="theme-color" content="#c3effd">
 <link rel="icon" href="favicon.png"><link rel="apple-touch-icon" href="favicon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -20,7 +20,6 @@
     <button class="hb" id="bMenu" aria-label="Menu">☰</button>
     <button class="hb" id="bCatalog">KATALOG</button>
     <button class="hb" id="bKasir">KASIR ▸</button>
-    <button class="hb" id="bAI" onclick="location.href='chat.html'">AI CHAT</button>
     <span class="grow"></span>
     <button class="hb" id="bPhone" aria-label="Buka HP (Berita & Diskusi)">📱</button>
     <button class="hb" id="bView" aria-label="Ganti sudut pandang">TPV</button>
@@ -45,7 +44,7 @@
       <button class="btn pri" id="bPlay">PLAY</button>
       <button class="btn" id="bQuick">KATALOG CEPAT</button>
       <button class="btn" id="bHow">HOW TO PLAY</button>
-      <a class="btn link" href="https://fucktherules.my.id/">kembali ke toko utama</a>
+      
     </div>
     <div class="load" id="loadState"><i></i><span>Memuat katalog…</span></div>
     <div class="born">born to disobey</div>
@@ -64,6 +63,7 @@
   </div>
 </div>
 
-<script type="module" src="game.js?v=20261101"></script>
+<script type="module">import { mountGate } from './aichat.js?v=1'; mountGate();</script>
+<script type="module" src="game.js?v=20261102"></script>
 </body>
 </html>
