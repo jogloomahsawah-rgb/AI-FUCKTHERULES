@@ -1,7 +1,7 @@
 // Tampilan ATAS: denah lengkap gaya kardus = TOKO + KANTOR + DAPUR + TAMAN.
 // Tanpa karakter pemain dan tanpa joystick. Geser = putar, dua jari = zoom + geser peta, scroll = zoom.
 // Agen kantor berjalan ke dapur / taman saat tidak ada kerjaan. KASIR dan STOK-BOT mengikuti posisi asli dari office.js.
-import { ROOMS, DOORS, AGENTS, WALLS, BREAK_EXIT, joinPath } from './layout.js?v=1';
+import { ROOMS, DOORS, AGENTS, WALLS, BREAK_EXIT, joinPath, OFFICE_X2 } from './layout.js?v=2';
 export function initTopView({ THREE, getState, getHangers, report }) {
   const wrap = document.createElement('div'); wrap.id = 'tv'; wrap.hidden = true;
   wrap.innerHTML = '<canvas></canvas><div class="tv-cards"></div><div class="tv-labels"></div><div class="tv-hint">Geser: putar · cubit: zoom · dua jari: geser peta · ketuk MANAGER untuk laporan</div><div class="tv-rep" hidden><div class="tv-rep-in"><pre></pre><div class="tv-rep-b"><button data-ai>Ringkas dengan AI</button><button data-x>Tutup</button></div></div></div>';
@@ -18,18 +18,18 @@ export function initTopView({ THREE, getState, getHangers, report }) {
   const label = (txt, x, z) => { const c = document.createElement('canvas'); c.width = 256; c.height = 64; const g = c.getContext('2d'); g.fillStyle = 'rgba(10,10,10,.55)'; g.fillRect(0, 0, 256, 64); g.fillStyle = '#e8ff3a'; g.font = '900 40px Impact,sans-serif'; g.textAlign = 'center'; g.fillText(txt, 128, 47); const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; const m = new THREE.Mesh(new THREE.PlaneGeometry(2.6, .65), new THREE.MeshBasicMaterial({ map: t, transparent: true })); m.rotation.x = -Math.PI / 2; m.position.set(x, .06, z); sc.add(m); };
 
   /* lantai */
-  const wood = cvTex(128, (g, n) => { for (let i = 0; i < 8; i++) { g.fillStyle = i % 2 ? '#e9a95f' : '#f0b469'; g.fillRect(0, i * 16, n, 14); g.fillStyle = '#c98a45'; g.fillRect(0, i * 16 + 14, n, 2); } }, 7, 6);
+  const wood = cvTex(128, (g, n) => { for (let i = 0; i < 8; i++) { g.fillStyle = i % 2 ? '#e9a95f' : '#f0b469'; g.fillRect(0, i * 16, n, 14); g.fillStyle = '#c98a45'; g.fillRect(0, i * 16 + 14, n, 2); } }, 10, 6);
   const tile = cvTex(64, (g, n) => { g.fillStyle = '#dedad2'; g.fillRect(0, 0, n, n); g.fillStyle = '#c9c4ba'; g.fillRect(0, 0, n, 2); g.fillRect(0, 0, 2, n); }, 16, 12);
   const tileK = cvTex(64, (g, n) => { g.fillStyle = '#d4ebf2'; g.fillRect(0, 0, n, n); g.fillStyle = '#b9d9e4'; g.fillRect(0, 0, n, 2); g.fillRect(0, 0, 2, n); }, 7, 6);
   const grass = cvTex(64, (g, n) => { g.fillStyle = '#7ccf6a'; g.fillRect(0, 0, n, n); g.fillStyle = '#6dc15c'; for (let i = 0; i < 14; i++) g.fillRect((i * 37) % n, (i * 23) % n, 6, 6); }, 4, 4);
-  floor(-8.1, -6.1, 8.1, 6.1, tile); floor(8.1, -6.1, 22.2, 6.1, wood); floor(8.1, 6.1, 15.2, 12.6, tileK); floor(15.2, 6.1, 22.2, 12.6, grass);
+  floor(-8.1, -6.1, 8.1, 6.1, tile); floor(8.1, -6.1, OFFICE_X2 + .1, 6.1, wood); floor(8.1, 6.1, 15.2, 12.6, tileK); floor(15.2, 6.1, 22.2, 12.6, grass);
   ROOMS.forEach(r => box(r.x2 - r.x1 - .6, .05, r.z2 - r.z1 - .6, r.rug, (r.x1 + r.x2) / 2, .03, (r.z1 + r.z2) / 2));
   label('TOKO', -6.2, -5.2); ROOMS.forEach(r => label(r.name, r.lab[0], r.lab[1])); label('DAPUR', 9.8, 11.7); label('TAMAN', 20.6, 7);
 
   /* dinding rendah (denah rumah boneka) */
-  wall(-8.1, -6.1, 22.2, -6.1); wall(-8.1, -6.1, -8.1, 6.1); wall(-8.1, 6.1, 8.1, 6.1, 0xbfe0f7, .9);
-  wall(8.1, -6.1, 8.1, .9); wall(8.1, 2.3, 8.1, 6.1); wall(22.2, -6.1, 22.2, 6.1);
-  wall(8.1, 6.1, 10.2, 6.1); wall(11.8, 6.1, 18.6, 6.1); wall(20.2, 6.1, 22.2, 6.1);
+  wall(-8.1, -6.1, OFFICE_X2 + .1, -6.1); wall(-8.1, -6.1, -8.1, 6.1); wall(-8.1, 6.1, 8.1, 6.1, 0xbfe0f7, .9);
+  wall(8.1, -6.1, 8.1, .9); wall(8.1, 2.3, 8.1, 6.1); wall(OFFICE_X2 + .1, -6.1, OFFICE_X2 + .1, 6.1);
+  wall(8.1, 6.1, 10.2, 6.1); wall(11.8, 6.1, 18.6, 6.1); wall(20.2, 6.1, OFFICE_X2 + .1, 6.1);
   wall(8.1, 6.1, 8.1, 12.6); wall(8.1, 12.6, 15.2, 12.6); wall(15.2, 6.1, 15.2, 8.9); wall(15.2, 10.3, 15.2, 12.6);
   wall(15.2, 12.6, 22.2, 12.6, 0x4aa35a, .8); wall(22.2, 6.1, 22.2, 12.6, 0x4aa35a, .8);
   [-4.5, 0, 4.5].forEach(x => box(1.4, .5, .1, 0xbfe0f7, x, .85, -6.0));
@@ -77,8 +77,8 @@ export function initTopView({ THREE, getState, getHangers, report }) {
   const AG = DSK.map(([role, col, x, z, w, L], i) => {
     box(w, .08, 1.1, 0xfbf0c9, x, .78, z); [[-1, -.45], [1, -.45], [-1, .45], [1, .45]].forEach(([a, b]) => box(.08, .74, .08, 0xcdbf8f, x + a * (w / 2 - .1), .37, z + b));
     box(.12, .3, .12, 0x24304a, x, .97, z - .2); box(.85, .5, .06, 0x24304a, x, 1.3, z - .2); const face = box(.74, .39, .02, 0x3a5a7a, x, 1.3, z - .16); box(.55, .06, .25, 0xf5f5f5, x + .35, .83, z + .15);
-    box(.7, .08, .7, 0x1d3a8a, x, .42, z + 1.05); box(.7, .75, .08, 0x1d3a8a, x, .85, z + 1.4);
-    const fig = figure(col, i, {}); fig.g.position.set(L.seat[0], 0, L.seat[1]); fig.g.rotation.y = Math.PI;
+    box(.7, .08, .7, 0x1d3a8a, x, .42, z + .87); box(.7, .75, .08, 0x1d3a8a, x, .85, z + 1.25);
+    const fig = figure(col, i, {}); fig.g.position.set(L.seat[0], 0, L.seat[1]); fig.g.rotation.y = 0;
     return { role, x, z, seat: L.seat, L, face, fig, mode: 'desk', path: [], pi: 0, spot: null, idleT: 0, wait: 4 + (i * 1.7) % 5, dwell: 0, w: false, task: '', say: '' };
   });
   const KS = { role: 'KASIR', fig: figure(0x0a0a0a, 3, { cap: 0x0a0a0a, pants: 0x1a1a1a }), px: 5, pz: 2.75, ry: Math.PI, walk: false, note: '', w: false };
@@ -97,9 +97,9 @@ export function initTopView({ THREE, getState, getHangers, report }) {
       if (a.mode !== 'visit') { if (a.spot) a.spot.busy = false; a.spot = null; a.mode = 'visit'; f.cup.visible = false; }
       const q = a.vs, dx = q.x - p.x, dz = q.z - p.z; if (Math.hypot(dx, dz) > .003 && q.mv) turn(f, Math.atan2(-dx, -dz), dt); else if (q.talk && q.to) turn(f, Math.atan2(-(q.to.x - p.x), -(q.to.z - p.z)), dt);
       p.set(q.x, 0, q.z); a.face.material = mt(0x3a5a7a); a.say = q.note; pose(f, q.mv ? 'walk' : 'stand', dt, t); return; }
-    if (a.mode === 'visit') { a.mode = 'desk'; a.idleT = 0; a.wait = 4 + Math.random() * 5; p.set(a.seat[0], 0, a.seat[1]); turn(f, Math.PI, dt); }
+    if (a.mode === 'visit') { a.mode = 'desk'; a.idleT = 0; a.wait = 4 + Math.random() * 5; p.set(a.seat[0], 0, a.seat[1]); turn(f, 0, dt); }
     if (a.mode === 'desk') {
-      a.face.material = mt(a.w ? 0x8fd6ff : 0x3a5a7a); p.set(a.seat[0], 0, a.seat[1]); turn(f, Math.PI, dt); f.cup.visible = false; pose(f, a.w ? 'type' : 'sit', dt, t); a.say = a.w ? a.task : '';
+      a.face.material = mt(a.w ? 0x8fd6ff : 0x3a5a7a); p.set(a.seat[0], 0, a.seat[1]); turn(f, 0, dt); f.cup.visible = false; pose(f, a.w ? 'type' : 'sit', dt, t); a.say = a.w ? a.task : '';
       if (!a.w) { a.idleT += dt; if (a.idleT > a.wait && onBreak() < 3) { const free = SPOTS.filter(s => !s.busy); if (free.length) { leave(a, free[Math.random() * free.length | 0]); a.idleT = 0; } } } else a.idleT = 0; return; }
     a.face.material = mt(0x3a5a7a);
     if (a.mode === 'toBreak' || a.mode === 'toDesk') {
@@ -128,7 +128,7 @@ export function initTopView({ THREE, getState, getHangers, report }) {
   }
 
   /* kamera orbit */
-  const O = { th: .55, ph: .95, rad: 34, tx: 7, ty: 0, tz: 3 }, ptr = new Map(); let pd = 0, pm = null;
+  const O = { th: .55, ph: .95, rad: 40, tx: 10, ty: 0, tz: 3 }, ptr = new Map(); let pd = 0, pm = null;
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v)), K = () => cam.aspect < 1 ? 1.4 : 1;
   cv.addEventListener('pointerdown', e => { cv.setPointerCapture(e.pointerId); ptr.set(e.pointerId, [e.clientX, e.clientY]); pd = 0; pm = null; });
   const up = e => { ptr.delete(e.pointerId); pd = 0; pm = null; }; cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
@@ -136,10 +136,10 @@ export function initTopView({ THREE, getState, getHangers, report }) {
     const o = ptr.get(e.pointerId); if (!o) return; const n = [e.clientX, e.clientY];
     if (ptr.size === 1) { O.th -= (n[0] - o[0]) * .007; O.ph = clamp(O.ph - (n[1] - o[1]) * .005, .35, 1.35); ptr.set(e.pointerId, n); return; }
     ptr.set(e.pointerId, n); const [a, b] = [...ptr.values()], d = Math.hypot(a[0] - b[0], a[1] - b[1]), mid = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
-    if (pd) { O.rad = clamp(O.rad * pd / d, 8, 70); const s = O.rad * K() * .0016, dx = mid[0] - pm[0], dy = mid[1] - pm[1], rx = Math.cos(O.th), rz = -Math.sin(O.th), fx = -Math.sin(O.th), fz = -Math.cos(O.th);
-      O.tx = clamp(O.tx + (-rx * dx + fx * dy) * s, -8, 22); O.tz = clamp(O.tz + (-rz * dx + fz * dy) * s, -6, 13); } pd = d; pm = mid;
+    if (pd) { O.rad = clamp(O.rad * pd / d, 8, 80); const s = O.rad * K() * .0016, dx = mid[0] - pm[0], dy = mid[1] - pm[1], rx = Math.cos(O.th), rz = -Math.sin(O.th), fx = -Math.sin(O.th), fz = -Math.cos(O.th);
+      O.tx = clamp(O.tx + (-rx * dx + fx * dy) * s, -8, 28); O.tz = clamp(O.tz + (-rz * dx + fz * dy) * s, -6, 13); } pd = d; pm = mid;
   });
-  cv.addEventListener('wheel', e => { e.preventDefault(); O.rad = clamp(O.rad * (1 + e.deltaY * .001), 8, 70); }, { passive: false });
+  cv.addEventListener('wheel', e => { e.preventDefault(); O.rad = clamp(O.rad * (1 + e.deltaY * .001), 8, 80); }, { passive: false });
 
   let W = 0, H = 0, t = 0; const v3 = new THREE.Vector3();
   return {
