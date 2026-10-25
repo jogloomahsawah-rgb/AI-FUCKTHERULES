@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>FVCKTHERULES — ENTER THE STORE</title>
+<meta name="description" content="Toko virtual FVCKTHERULES. Soccer culture. Street attitude. Born to Disobey.">
+<meta name="theme-color" content="#c3effd">
+<link rel="icon" href="favicon.png"><link rel="apple-touch-icon" href="favicon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Gaegu:wght@400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css?v=20261016">
+</head>
+<body>
+<canvas id="game" aria-label="Toko FVCKTHERULES"></canvas>
+
+<!-- HUD -->
+<div id="hud" hidden>
+  <div class="hud-top">
+    <button class="hb" id="bMenu" aria-label="Menu">☰</button>
+    <button class="hb" id="bCatalog">KATALOG</button>
+    <button class="hb" id="bKasir">KASIR ▸</button>
+    <button class="hb" id="bAI" onclick="location.href='chat.html'">AI CHAT</button>
+    <span class="grow"></span>
+    <button class="hb" id="bPhone" aria-label="Buka HP (Berita & Diskusi)">📱</button>
+    <button class="hb" id="bView" aria-label="Ganti sudut pandang">TPV</button>
+    <button class="hb" id="bMute" aria-label="Suara">🔊</button>
+    <button class="hb" id="bCart">TAS <b id="cartN">0</b></button>
+  </div>
+  <div id="prompt" hidden></div>
+  <div id="toast" hidden></div>
+  <div id="touch">
+    <div id="joy"><div id="knob"></div></div>
+    <button id="bAct">E</button>
+  </div>
+</div>
+
+<!-- INTRO -->
+<section id="intro" class="screen">
+  <div class="intro-in">
+    <img class="brand-logo" src="logo.png" alt="Logo FvcktheRules" width="132" height="190">
+    <h1 class="wm">fvcktherules<i>store</i></h1>
+    <div class="tag">soccer culture · street attitude</div>
+    <div class="btns">
+      <button class="btn pri" id="bPlay">PLAY</button>
+      <button class="btn" id="bQuick">KATALOG CEPAT</button>
+      <button class="btn" id="bHow">HOW TO PLAY</button>
+      <a class="btn link" href="https://fucktherules.my.id/">kembali ke toko utama</a>
+    </div>
+    <div class="load" id="loadState"><i></i><span>Memuat katalog…</span></div>
+    <div class="born">born to disobey</div>
+  </div>
+</section>
+
+<!-- PANEL (katalog / produk / tas / checkout / kasir) -->
+<div id="panel" class="screen" hidden>
+  <div class="sheet" role="dialog" aria-modal="true">
+    <div class="sheet-bar">
+      <button class="x" id="pBack" hidden>‹ KEMBALI</button>
+      <img class="sb-logo" src="logo.png" alt=""><span id="pTitle"></span>
+      <button class="x" id="pClose" aria-label="Tutup">✕</button>
+    </div>
+    <div id="pBody" class="sheet-body"></div>
+  </div>
+</div>
+
+<script type="module" src="game.js?v=20261101"></script>
+</body>
+</html>

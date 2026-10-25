@@ -1,0 +1,52 @@
+<!doctype html><html lang="id"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1"><title>FVCKTHERULES AI</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#000;color:#fff;font:15px system-ui,sans-serif;display:flex;flex-direction:column;height:100dvh}
+header{padding:12px 16px;border-bottom:1px solid #333;display:flex;justify-content:space-between;align-items:center;letter-spacing:.15em;font-weight:700}
+header small{color:#888;font-weight:400;letter-spacing:0}
+nav{display:flex;border-bottom:1px solid #333}nav button{flex:1;background:none;border:0;color:#888;padding:10px;font:inherit;border-bottom:2px solid transparent}
+nav button.on{color:#fff;border-color:#fff}
+main{flex:1;overflow:auto;padding:16px}.m{margin:0 0 12px;padding:10px 12px;border:1px solid #333;white-space:pre-wrap}
+.u{border-color:#fff}.card{border:1px solid #444;padding:12px;margin-bottom:12px}.card b{display:block;margin-bottom:6px}
+form{display:flex;gap:8px;padding:12px;border-top:1px solid #333}input{flex:1;background:#000;color:#fff;border:1px solid #555;padding:12px;font:inherit}
+button.p{background:#fff;color:#000;border:0;padding:0 16px;font-weight:700}button.s{background:none;border:1px solid #fff;color:#fff;padding:6px 12px;margin-right:8px}
+#login{margin:auto;text-align:center}#app{display:none;flex-direction:column;flex:1;min-height:0}.hide{display:none!important}
+</style></head><body>
+<div id="login"><h2>FVCKTHERULES AI</h2><button class="p" style="padding:12px 20px" id="gl">Login Google (admin)</button><p id="err" style="color:#f66"></p></div>
+<div id="app">
+<header><span>FVCKTHERULES AI</span><a href="index.html" style="color:#fff;font-size:12px">← KANTOR 3D</a><small id="who"></small></header>
+<nav><button class="on" data-t="chat">Chat</button><button data-t="appr">Approvals</button><button data-t="draft">Drafts</button></nav>
+<main id="v"></main>
+<form id="f"><input id="q" placeholder="Ketik instruksi... mis. ringkas order belum lunas" autocomplete="off"><button class="p">Kirim</button></form>
+</div>
+<script type="module">
+import {initializeApp} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import {getAuth,signInWithPopup,GoogleAuthProvider,onAuthStateChanged} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import {getFirestore,collection,query,orderBy,limit,getDocs,doc,updateDoc} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+const WORKER="https://fvck-ai.GANTI-SUBDOMAIN.workers.dev"; // <- URL Worker kamu
+const app=initializeApp({apiKey:"AIzaSyCVL_C4opQiKC6fNG_Rw4l-519rQZICH58",authDomain:"fvcktherules-store.firebaseapp.com",projectId:"fvcktherules-store"});
+const auth=getAuth(app),db=getFirestore(app),$=s=>document.querySelector(s),v=$('#v');
+let tab='chat',hist=[],user;
+$('#gl').onclick=()=>signInWithPopup(auth,new GoogleAuthProvider()).catch(e=>$('#err').textContent=e.message);
+onAuthStateChanged(auth,u=>{user=u;$('#login').classList.toggle('hide',!!u);$('#app').style.display=u?'flex':'none';if(u){$('#who').textContent=u.email;show()}});
+document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{document.querySelector('nav .on').classList.remove('on');b.classList.add('on');tab=b.dataset.t;show()});
+const esc=s=>String(s??'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+const add=(t,c)=>{v.insertAdjacentHTML('beforeend',`<div class="m ${c}">${esc(t)}</div>`);v.scrollTop=1e9};
+async function show(){
+  $('#f').classList.toggle('hide',tab!=='chat');v.innerHTML='';
+  if(tab==='chat')return hist.forEach(m=>add(m.text,m.role==='user'?'u':''));
+  const col=tab==='appr'?'aiApprovals':'aiDrafts';
+  try{const s=await getDocs(query(collection(db,col),orderBy('createdAt','desc'),limit(30)));
+  if(s.empty)v.innerHTML='<p style="color:#888">Kosong.</p>';
+  s.forEach(d=>{const x=d.data();v.insertAdjacentHTML('beforeend',tab==='appr'
+   ?`<div class="card"><b>${esc(x.aksi)} · ${esc(x.status)}</b>${esc(x.detail)}<br><small>${esc(x.alasan)}</small><br><br>${x.status==='pending'?`<button class="s" data-a="approved" data-id="${d.id}">Setujui</button><button class="s" data-a="rejected" data-id="${d.id}">Tolak</button>`:''}</div>`
+   :`<div class="card"><b>${esc(x.jenis)}: ${esc(x.judul)}</b>${esc(x.isi)}</div>`)});
+  v.querySelectorAll('[data-a]').forEach(b=>b.onclick=async()=>{await updateDoc(doc(db,'aiApprovals',b.dataset.id),{status:b.dataset.a,decidedBy:user.email,decidedAt:new Date().toISOString()});show()});
+  }catch(e){v.textContent='Gagal: '+e.message}
+}
+$('#f').onsubmit=async e=>{e.preventDefault();const t=$('#q').value.trim();if(!t)return;$('#q').value='';
+  hist.push({role:'user',text:t});add(t,'u');add('...','');
+  try{const r=await fetch(WORKER+'/chat',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+await user.getIdToken()},body:JSON.stringify({messages:hist})});
+  const j=await r.json();v.lastChild.remove();const m=j.reply||('Error: '+j.error);hist.push({role:'model',text:m});add(m+(j.cek?'\n\n['+j.cek.maker+(j.cek.checker?' → dicek '+j.cek.checker+': '+j.cek.verdict:' · '+j.cek.verdict)+']'+(j.cek.masalah?.length?'\n! '+j.cek.masalah.join('\n! '):''):''),'')}
+  catch(x){v.lastChild.remove();add('Error: '+x.message,'')}};
+</script></body></html>
