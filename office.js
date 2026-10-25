@@ -93,7 +93,7 @@ export function buildOffice(X) {
   const bl = mkLab(); scene.add(bl); bl.draw('STOK-BOT', 'mulai patroli', true);
   var bs = { tgt: null, wait: 1, cur: null, walk: 0, mv: false, tm: 0 };
   const botSpot = { id: 'stokbot', x: -2.6, z: 3.8, lim: 1.7, t: 'PRESS E · STOK-BOT (AI)', go: () => { const q = bs.cur && bs.cur.p;
-    say('STOK-BOT · AI', (q ? `Terakhir cek: ${q.name}\nStatus: ${({ ready: 'READY STOCK', pre: 'PRE ORDER', sold: 'ARSIP' })[q.badge] || q.badge}\nUkuran tersedia: ${q.stock.join(' / ') || '-'}\n\n` : '') + rep(), [['BUKA PRODUK', () => q && X.openProduct(q.id, () => X.closePanel())], ['TUTUP']]); } };
+    say('STOK-BOT · AI', (q ? `Terakhir cek: ${q.name}\nStatus: ${({ ready: 'READY STOCK', pre: 'PRE ORDER', sold: 'ARSIP' })[q.badge] || q.badge}\nUkuran tersedia: ${q.stock.join(' / ') || '-'}\n\n` : '') + rep(), [['TUTUP']]); } };
   SPOTS.push(botSpot);
   function botTick(dt) {
     const p = bot.g.position, H = getHangers(); bs.mv = false;
@@ -107,7 +107,7 @@ export function buildOffice(X) {
 
   setInterval(() => { const a = AGS[Math.random() * AGS.length | 0]; setA(a, !a.w); tok += AGS.filter(q => q.w).length * (40 + Math.random() * 60 | 0); drawB(); }, 1800); drawB();
   return {
-    solids: [], update(t, dt) { AGS.forEach(a => { const w = a.w ? 1 : 0; a.h.aL.rotation.x = w ? -.8 + Math.sin(t * 10 + a.i) * .12 : 0; a.h.aR.rotation.x = w ? -.8 + Math.cos(t * 9 + a.i) * .12 : 0; }); kasirTick(dt); botTick(dt); },
+    solids: [], state: () => ({ tok, agents: [...AGS.map(a => ({ role: a.role, w: a.w, task: a.task })), { role: 'STOK', w: bs.wait <= 0, task: bs.cur ? 'Cek ' + bs.cur.p.name.slice(0, 18) : 'Patroli stok' }] }), update(t, dt) { AGS.forEach(a => { const w = a.w ? 1 : 0; a.h.aL.rotation.x = w ? -.8 + Math.sin(t * 10 + a.i) * .12 : 0; a.h.aR.rotation.x = w ? -.8 + Math.cos(t * 9 + a.i) * .12 : 0; }); kasirTick(dt); botTick(dt); },
     inside: (x, y, z) => y > .3 && y < 3.2 && ((x > 8.3 && x < 21.9 && z > -5.9 && z < 5.9) || (x > 7.75 && x <= 8.3 && z > 1 && z < 2.2)),
     clamp(p, RW, RZN, RZP) {
       const inDoor = p.z > 1 && p.z < 2.2; p.x = Math.max(-RW + .1, Math.min(21.4, p.x));

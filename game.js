@@ -1,10 +1,11 @@
+import { initTopView } from './topview.js?v=1';
 import { S, initShop, bindUI, openCatalog, openProduct, openCart, openCheckout, openReceipt, hasReceipt, closePanel, panelOpen, cartCount, showRaw, getBannerText, rp, MAIN_ORIGIN, logout, esc } from './shop.js?v=20261032';
-import { initPhone } from './phone.js?v=20261033';
-import { buildOffice } from './office.js?v=2';
+import { initPhone } from './phone.js?v=20261034';
+import { buildOffice } from './office.js?v=3';
 let OFF = null;
 const $ = s => document.querySelector(s);
 const cv = $('#game');
-let paused = true, started = false, muted = localStorage.getItem('fvckgame.mute') === '1', t = 0;
+let TV = null, lastWant = false, paused = true, started = false, muted = localStorage.getItem('fvckgame.mute') === '1', t = 0;
 let rPause = false;                                   // true = jangan menggambar 3D (browser HP sedang aktif)
 let phone = { isOpen: () => false, close() { }, toggle() { } };   // diganti initPhone() setelah keys/joystick siap
 /* ---------- audio (WebAudio, tanpa file) ---------- */
@@ -410,6 +411,7 @@ function buildWorld() {
   });
   FPH.visible = false;
   try { OFF = buildOffice({ THREE, scene, M, ctex, tm, T, bx, pln, makeHuman, animHuman, say, S, toast, getHangers: () => hangers, getSolids: () => solids, lightsQ, SPOTS, STATIC: STATIC_SOLIDS, openProduct, closePanel, CM }); } catch (e) { console.error('office gagal', e); OFF = null; }
+  try { TV = initTopView({ THREE, getState: () => OFF && OFF.state() }); } catch (e) { console.error('topview gagal', e); TV = null; }
   placeMirror(MIRI); bakeStatic();
 }
 function drawScreen() {
@@ -487,11 +489,7 @@ function syncAcc() {
 }
 S.listeners.add(syncAcc);
 const SPOTS = [
-  { id: 'table', x: 0, z: 0, lim: 2.0, t: 'PRESS E TO BROWSE · SEMUA PRODUK', go: () => openCatalog('all') },
-  { id: 'kasir', x: 5, z: 4.5, lim: 2.0, t: 'PRESS E TO CHECKOUT', go: cashier },
   { id: 'board', x: 5.0, z: -4.9, lim: 1.8, t: 'PRESS E TO READ · PAPAN DROP', go: board },
-  { id: 'door', x: 0, z: 5.1, lim: 1.5, t: 'PRESS E · KELUAR KE TOKO UTAMA', go: door },
-  { id: 'aksesoris', x: -6.7, z: 1.85, lim: 1.5, t: 'PRESS E · MEJA AKSESORIS', go: () => openCatalog('acc') },
   { id: 'ball', x: 0, z: 0, lim: 1.3, t: 'PRESS E · TENDANG BOLA', go: kick },
   { id: 'mirror', x: -6, z: -4.7, lim: 1.4, t: 'PRESS E · CERMIN', go: () => say('CERMIN', 'Outfit check. Rules? Dilanggar.', [['PINDAH CERMIN', moveMirror], ['TUTUP']]) }
 ];
@@ -512,13 +510,12 @@ function kick() { beep('kick'); const dx = ball.x - pl.x, dz = ball.z - pl.z, l 
 /* ---------- pemain, kamera, input ---------- */
 const pl = { x: -2.6, z: 1.2, ry: Math.PI, walk: 0, moving: false }, cam = { yaw: 0, pitch: .06 };
 const VMS = ['tpv', 'fpv', 'atas']; let vm = localStorage.getItem('fvckgame.vm') || 'tpv'; if (!VMS.includes(vm)) vm = 'tpv';
-let fp = vm === 'fpv', topv = vm === 'atas', topD = 12;
+let fp = vm === 'fpv', topv = vm === 'atas';
 const setVM = v => { vm = v; fp = v === 'fpv'; topv = v === 'atas'; localStorage.setItem('fvckgame.vm', v); $('#bView').textContent = v.toUpperCase(); };
 setVM(vm);
 const nextVM = () => setVM(VMS[(VMS.indexOf(vm) + 1) % 3]);
 $('#bView').addEventListener('click', () => { nextVM(); beep('step'); });
 addEventListener('keydown', e => { if (!paused && (e.key === 'v' || e.key === 'V')) nextVM(); });
-addEventListener('wheel', e => { if (topv) topD = Math.max(6, Math.min(20, topD + e.deltaY * .01)); }, { passive: true });
 addEventListener('keydown', e => {
   if (e.key === 'Escape') { if (phone.isOpen()) phone.close(); else if ($('#say')) closeSay(); else if (panelOpen()) closePanel(); return; }
   if ((e.key === 'p' || e.key === 'P') && started && !panelOpen() && !$('#say')) { phone.toggle(); return; }
@@ -551,7 +548,7 @@ if (matchMedia('(pointer:coarse)').matches || 'ontouchstart' in window) document
 let hot = null;
 function nearest() {
   let best = null, bs = 1;
-  for (const h of hangers) { const d = Math.hypot(pl.x - h.x, pl.z - h.z) / 1.5; if (d < bs) { bs = d; best = { h, t: `PRESS E · ${h.p.name.toUpperCase()} · ${rp(h.p.priceN)}`, go: () => openProduct(h.p.id, () => closePanel()) }; } }
+  for (const h of hangers) { const d = Math.hypot(pl.x - h.x, pl.z - h.z) / 1.5; if (d < bs) { bs = d; best = { h, t: `PRESS E · ${h.p.name.toUpperCase()} · CEK STOK`, go: () => say(h.p.name.toUpperCase(), `Status: ${({ ready: 'READY STOCK', pre: 'PRE ORDER', sold: 'ARSIP' })[h.p.badge] || h.p.badge}\nUkuran tersedia: ${(h.p.stock || []).join(' / ') || '-'}`, [['TUTUP']]) }; } }
   for (const s of SPOTS) { const sx = s.id === 'ball' ? ball.x : s.x, sz = s.id === 'ball' ? ball.z : s.z; const d = Math.hypot(pl.x - sx, pl.z - sz) / s.lim; if (d < bs) { bs = d; best = s; } }
   return best;
 }
@@ -582,13 +579,12 @@ function update(dt) {
 }
 
 /* ---------- kamera + gambar tiap frame ---------- */
-const camPos = THREE ? new THREE.Vector3() : null, camTar = THREE ? new THREE.Vector3() : null; let camInit = false, lastFP = false, lastTV = false, frameNo = 0, photoT = 0;
+const camPos = THREE ? new THREE.Vector3() : null, camTar = THREE ? new THREE.Vector3() : null; let camInit = false, lastFP = false, frameNo = 0, photoT = 0;
 function updateCamera(dt) {
   const act = started, yaw = act ? cam.yaw : t * .15, fpv = fp && act;
   const lim = fpv ? 1.25 : .8, lo = fpv ? -1.25 : -.4; if (act && !topv) cam.pitch = Math.max(lo, Math.min(lim, cam.pitch));
   const p = act ? cam.pitch : .08, cp = Math.cos(p), sp = Math.sin(p), sy = Math.sin(yaw), cyw = Math.cos(yaw);
   const dir = [sy * cp, sp, -cyw * cp], rgt = [cyw, 0, sy], px = act ? pl.x : 0, pz = act ? pl.z : 0;
-  const tv = topv && act; if (tv !== lastTV) { camInit = false; lastTV = tv; }
   if (fpv !== lastFP) { camInit = false; lastFP = fpv; }
   const bob = pl.moving ? Math.sin(pl.walk * 2) * .03 : Math.sin(t * 1.6) * .006;
   if (fpv) {
@@ -596,10 +592,6 @@ function updateCamera(dt) {
     camera.position.set(ex, ey, ez); camera.lookAt(ex + dir[0], ey + dir[1], ez + dir[2]);
     FPI.position.set(Math.sin(pl.walk) * (pl.moving ? .012 : 0), (pl.moving ? Math.abs(Math.sin(pl.walk)) * .015 : Math.sin(t * 1.1) * .004), 0);
     camera.updateMatrixWorld(); FPH.position.copy(camera.position); FPH.quaternion.copy(camera.quaternion);
-  } else if (tv) {                                   // tampilan atas (2D-isometrik): kamera tinggi, miring ke bawah, ikut pemain
-    const ca = Math.cos(.95), sa = Math.sin(.95), cx = px - sy * ca * topD, cy = sa * topD, cz = pz + cyw * ca * topD;
-    if (!camInit) { camPos.set(cx, cy, cz); camInit = true; } else camPos.lerp(new THREE.Vector3(cx, cy, cz), 1 - Math.exp(-dt * 8));
-    camera.position.copy(camPos); camera.lookAt(px, .6, pz);
   } else {
     const dist0 = act ? 2.5 : 5.4, off = act ? .38 : 0, ty = act ? 1.5 : 1.3;
     const inside = (x, y, z) => (x > -7.75 && x < 7.75 && z > -5.8 && z < 5.8 && y > .3 && y < 3.2) || (OFF && OFF.inside(x, y, z));
@@ -622,6 +614,9 @@ function render(dt) {
   if (t - photoT > .5) { photoT = t; photoTick(); }
   const n = cartCount(); if (n !== lastCart) { lastCart = n; drawScreen(); }
   if (OFF) OFF.update(t, dt);
+  const want = topv && started && !!TV;
+  if (want !== lastWant) { lastWant = want; document.body.classList.toggle('topmode', want); TV.setActive(want); if (want) paused = true; else if (started && !phone.isOpen() && !panelOpen()) paused = false; }
+  if (want) { TV.frame(dt); return; }
   updateCamera(dt);
   if (Q > 0 && (frameNo++ & 1) === 0) renderer.shadowMap.needsUpdate = true;      // bayangan diperbarui tiap 2 frame
   renderer.clear(); renderer.render(scene, camera);
@@ -669,18 +664,17 @@ if (renderer) {
 /* ---------- alur layar ---------- */
 const howHTML = `<div class="note"><b>DESKTOP</b><br>WASD = jalan · geser mouse (tahan klik) / ← → = putar kamera · E = ambil baju / interaksi · V = ganti sudut pandang (orang ketiga/orang pertama) · ESC = tutup panel.</div>
 <div class="note"><b>MOBILE</b><br>Joystick kiri bawah = jalan · geser layar = putar kamera · tombol E (atau tap tulisan "TAP …") = interaksi · tombol TPV/FPV di atas = ganti sudut pandang.</div>
-<div class="note"><b>MISI</b><br>1) Dekati hanger, tekan E, pilih warna & ukuran, ADD TO CART.<br>2) Jalan ke KASIR (atau tekan tombol KASIR ▸ di atas = lompat langsung).<br>3) Isi data kirim, bayar via QRIS / transfer, upload bukti, dapat struk + ID pesanan.</div>
-<div class="note">Cuma mau belanja cepat? Tombol <b>KATALOG</b> membuka semua produk tanpa jalan-jalan. Harga & stok selalu dari toko utama.</div>
+<div class="note"><b>KANTOR ADMIN</b><br>Jalan ke OFFICE lewat pintu di sisi kanan toko. Tombol TPV / FPV / ATAS mengganti sudut pandang: ATAS = peta kantor (geser untuk memutar, cubit untuk zoom). Chat AI ada di aplikasi AI di dalam HP. Ini bukan web pelanggan, tidak ada fitur belanja.</div>
 <div class="note">Aksesoris ada di <b>meja AKSESORIS</b> (dinding kiri, di samping kaca). Dekati meja lalu tekan E. Aksesoris juga ada di KATALOG → chip AKSESORIS.</div>
 <div class="note">Coba tendang bola di lantai. Cari papan drop di dinding belakang.</div>`;
 function play() {
   $('#intro').hidden = true; $('#hud').hidden = false; started = true; paused = false; beep('door'); setMute(muted);
   if (!localStorage.getItem('fvckgame.seen')) { localStorage.setItem('fvckgame.seen', '1'); say('SELAMAT DATANG', document.body.classList.contains('is-touch') ? 'Joystick = jalan, geser layar = putar kamera, E = ambil baju dari hanger. KASIR ▸ = langsung ke kasir.' : 'WASD = jalan, geser mouse = putar kamera, E = ambil baju dari hanger. KASIR ▸ = langsung ke kasir.'); }
 }
-phone = initPhone({ onOpen: () => { paused = true; for (const k in keys) keys[k] = false; jx = jy = 0; closeSay(); if (panelOpen()) closePanel(); }, onClose: () => { paused = !started; }, onWeb: a => { rPause = a; } });
+phone = initPhone({ onOpen: () => { paused = true; for (const k in keys) keys[k] = false; jx = jy = 0; closeSay(); if (panelOpen()) closePanel(); }, onClose: () => { paused = !started || topv; }, onWeb: a => { rPause = a; } });
 $('#bPhone').onclick = () => { if (started && !panelOpen()) phone.toggle(); };
 $('#bPlay').onclick = play; $('#bHow').onclick = () => showRaw('HOW TO PLAY', howHTML);
-$('#bQuick').onclick = () => openCatalog('all');
+
 const acctHTML = () => S.user ? `<div class="note">Login sebagai <b>${esc(S.user.email || 'akun toko')}</b>.</div><button id="mOut" style="width:100%">LOGOUT</button>` : '<div class="note">Belum login. Login bersifat opsional dan ada di langkah checkout (kasir).</div>';
 $('#bMenu').onclick = () => showRaw('MENU', `${howHTML}<div class="lbl">AKUN</div>${acctHTML()}<div class="foot">${hasReceipt() ? '<button id="mRec">STRUK TERAKHIR</button>' : ''}<a class="btn" href="${MAIN_ORIGIN}/">KEMBALI KE TOKO UTAMA</a></div>`);
 document.addEventListener('click', async e => { if (e.target.id === 'mRec') openReceipt(); if (e.target.id === 'mOut') { e.target.disabled = true; const ok = await logout(); toast(ok ? 'Kamu sudah logout' : 'Logout gagal, coba lagi'); $('#bMenu').onclick(); } });
