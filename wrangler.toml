@@ -1,0 +1,28 @@
+name = "fvck-ai"
+main = "worker.js"
+compatibility_date = "2024-11-01"
+
+[vars]
+FIREBASE_PROJECT_ID = "fvcktherules-store"
+FIREBASE_API_KEY = "AIzaSyCVL_C4opQiKC6fNG_Rw4l-519rQZICH58"  # kunci web publik, bukan rahasia
+ADMIN_EMAILS = "diasadhityap@gmail.com,fvcktherules3404@gmail.com"
+ALLOWED_ORIGINS = "https://fucktherules.my.id,https://www.fucktherules.my.id,https://ai.fucktherules.my.id,http://localhost:5173"
+GEMINI_MODEL = "gemini-2.5-flash"
+GROQ_MODEL = "llama-3.3-70b-versatile"      # cek nama model terbaru di console.groq.com
+CF_MODEL = "@cf/meta/llama-3.1-8b-instruct" # cek daftar model Workers AI
+MAKER_ORDER = "gemini,groq,cfai"          # semua gratis; cfai (Workers AI) tanpa API key, selalu jadi cadangan terakhir
+SITES = "https://fucktherules.my.id,https://game.fucktherules.my.id,https://ai.fucktherules.my.id"  # dicek agen QA
+PRIVATE_COLS = "orders,aiTasks,aiApprovals,aiDrafts"  # harus menolak akses publik (dicek agen SECURITY)
+CROSSCHECK = "on"                           # cek silang untuk CHAT saja
+TREND_FEEDS = "https://feeds.bbci.co.uk/sport/football/rss.xml"   # feed RSS publik untuk sinyal tren bola (judul saja). Cek URL masih aktif; kosongkan "" untuk mematikan
+CROSSCHECK_JOBS = "off"                     # tugas terjadwal tanpa cek silang (hemat 1 panggilan per tugas)
+AI_DAILY_CAP = "120"                        # anggaran panggilan AI/hari untuk tugas terjadwal; lewat ini jalan tanpa AI (chat tetap jalan)                           # "off" untuk mematikan pemeriksaan silang
+# Rahasia: npx wrangler secret put GEMINI_API_KEY
+
+[ai]
+binding = "AI"   # Workers AI (gratis dalam kuota akun Cloudflare)
+# Rahasia: npx wrangler secret put GROQ_API_KEY
+
+[triggers]
+crons = ["*/15 * * * *"]   # pemicu jadwal agen (satu saja, gratis)
+# Rahasia tambahan: npx wrangler secret put FIREBASE_SA   (isi: seluruh teks file JSON service account)

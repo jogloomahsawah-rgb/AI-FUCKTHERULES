@@ -99,7 +99,7 @@ export function initTopView({ THREE, getState, getHangers, report }) {
       p.set(q.x, 0, q.z); a.face.material = mt(0x3a5a7a); a.say = q.note; pose(f, q.mv ? 'walk' : 'stand', dt, t); return; }
     if (a.mode === 'visit') { a.mode = 'desk'; a.idleT = 0; a.wait = 4 + Math.random() * 5; p.set(a.seat[0], 0, a.seat[1]); turn(f, 0, dt); }
     if (a.mode === 'desk') {
-      a.face.material = mt(a.w ? 0x8fd6ff : 0x3a5a7a); p.set(a.seat[0], 0, a.seat[1]); turn(f, 0, dt); f.cup.visible = false; pose(f, a.w ? 'type' : 'sit', dt, t); a.say = a.w ? a.task : '';
+      a.face.material = mt(a.w ? 0x8fd6ff : 0x3a5a7a); p.set(a.seat[0], 0, a.seat[1]); turn(f, 0, dt); f.cup.visible = false; pose(f, a.w ? 'type' : 'sit', dt, t); a.say = (a.w || a.live) ? a.task : '';
       if (!a.w) { a.idleT += dt; if (a.idleT > a.wait && onBreak() < 3) { const free = SPOTS.filter(s => !s.busy); if (free.length) { leave(a, free[Math.random() * free.length | 0]); a.idleT = 0; } } } else a.idleT = 0; return; }
     a.face.material = mt(0x3a5a7a);
     if (a.mode === 'toBreak' || a.mode === 'toDesk') {
@@ -121,7 +121,7 @@ export function initTopView({ THREE, getState, getHangers, report }) {
   function openRep(ai) { repEl.hidden = false; repPre.textContent = 'Menyusun laporan…'; report && report(ai).then(t => { repPre.textContent = t; }).catch(e => { repPre.textContent = 'Gagal: ' + e.message; }); }
   repEl.querySelector('[data-x]').onclick = () => { repEl.hidden = true; }; repEl.querySelector('[data-ai]').onclick = () => openRep(true);
   function pull() {
-    S = getState && getState(); if (!S) return; S.agents.forEach(q => { const a = AG.find(z => z.role === q.role); if (a) { a.w = !!q.w; a.task = q.task || ''; } });
+    S = getState && getState(); if (!S) return; S.agents.forEach(q => { const a = AG.find(z => z.role === q.role); if (a) { a.w = !!q.w; a.task = q.task || ''; a.live = !!q.live; } });
     const act = S.agents.filter(q => q.w).length + S.walkers.filter(q => q.w).length, brk = AG.filter(a => a.mode === 'break').length;
     cards.innerHTML = [['Agen aktif', act + '/10'], ['Istirahat', brk], ['Token', fmt(S.tok)], ['Biaya hari ini', 'Rp 0']].map(([k, v]) => `<div class="tv-card"><small>${k}</small><b>${v}</b></div>`).join('');
     ENT.forEach((e, i) => { const on = e.role === 'KASIR' || e.role === 'STOK-BOT' ? e.w : (e.mode === 'desk' ? e.w : false), br = e.mode === 'break'; pills[i].p.innerHTML = `<i style="background:${on ? '#3ddc84' : br ? '#f0b72a' : '#777'}"></i>${e.role}`; });

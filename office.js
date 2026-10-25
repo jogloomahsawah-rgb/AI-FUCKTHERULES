@@ -68,10 +68,14 @@ export function buildOffice(X) {
   const AGS = AGENTS.map((L, i) => {
     const [col, tasks] = INFO[L.role], scr = desk(L.x, L.z, L.w), ch = chair(L.seat[0], L.seat[1] + .02), h = makeHuman({ top: col, pants: 0x1a1a1a, shoes: 0x111111 }); h.g.position.set(L.seat[0], 0, L.seat[1]); h.g.rotation.y = Math.PI; scene.add(h.g);
     const l = mkLab(); l.position.set(L.seat[0], 2.45, L.seat[1]); const a = { role: L.role, L, tasks, scr, h, l, w: false, task: '', i, v: null, walk: 0, mv: false };
-    SPOTS.push({ id: 'ag' + i, x: L.vis[0], z: L.vis[1], lim: 1.3, t: i === 0 ? 'PRESS E · MANAGER · LAPORAN' : `PRESS E · ${L.role} (AI)`, go: () => i === 0 ? mgrOpen() : say(L.role + ' · AI · ' + L.room, (a.v ? 'Sedang jalan: ' + a.v.txt + ' ke ' + a.v.to.role : a.w ? 'Sedang: ' + a.task : 'Standby.') + '\n\nStatus agen di kantor ini masih simulasi. Data nyata menyusul lewat window.fvckOffice.update().') });
+    SPOTS.push({ id: 'ag' + i, x: L.vis[0], z: L.vis[1], lim: 1.3, t: i === 0 ? 'PRESS E · MANAGER · LAPORAN' : `PRESS E · ${L.role} (AI)`, go: () => i === 0 ? mgrOpen() : say(L.role + ' · AI · ' + L.room, (a.v ? 'Sedang jalan: ' + a.v.txt + ' ke ' + a.v.to.role : a.w ? 'Sedang: ' + a.task : live ? a.task : 'Standby.') + '\n\n' + (live ? (a.det ? a.det + '\n\n' : '') + 'Status dari Worker (jadwal nyata). Aktivitas santai hanya hiburan kantor.' : 'Status agen di kantor ini masih simulasi.') + '') });
     return a; });
-  const setA = (a, w, task) => { a.w = w; a.task = task || a.tasks[Math.random() * a.tasks.length | 0]; a.scr.material.color.set(w ? 0x7fd0ff : 0x3a5a7a); a.l.draw(a.role, w ? a.task.slice(0, 22) : 'standby', w); };
+  let live = false;   // true setelah status nyata dari Worker berhasil dibaca
+  const setA = (a, w, task) => { a.w = w; a.task = task || a.tasks[Math.random() * a.tasks.length | 0]; a.scr.material.color.set(w ? 0x7fd0ff : 0x3a5a7a); a.l.draw(a.role, (w || live) ? a.task.slice(0, 22) : 'standby', w); };
   AGS.forEach((a, i) => setA(a, i < 3));
+  const pollLive = async () => { if (!WORKER_OK) return; try { const r = await fetch(WORKER + '/status'); if (!r.ok) return; const j = await r.json(); live = true;
+    (j.agents || []).forEach(q => { const a = AGS.find(z => z.role === (q.role === 'ORCHESTRATOR' ? 'MANAGER' : q.role)); if (a && !a.v) { a.det = q.emoji + ' ' + q.ket; setA(a, q.mode === 'kerja', q.aktivitas); } }); } catch { } };
+  pollLive(); setInterval(pollLive, 60000);
   window.fvckOffice = { markBreak: role => { brk[role] = performance.now(); }, report: ai => ai ? mgrAI() : Promise.resolve(mgrText()), update: (role, o) => { if (role === 'ORCHESTRATOR') role = 'MANAGER'; const a = AGS.find(q => q.role === role); if (a) setA(a, o.status === 'working', o.task); } };
 
   /* papan status di dinding */
@@ -136,7 +140,7 @@ export function buildOffice(X) {
   /* MANAGER: merangkum laporan agen + kasir + stok, lalu melapor ke admin (kamu) */
   function mgrText() {
     const now = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }).replace('.', ':'), w = AGS.filter(a => a.w), n = w.length + (bs.wait <= 0 ? 1 : 0) + (ks.st !== 'idle' ? 1 : 0);
-    return `LAPORAN MANAGER · ${now}\n\nAgen aktif ${n}/10.\n` + (w.length ? w.map(a => '• ' + a.role + ': ' + a.task).join('\n') : '• Agen kantor semua standby.') + `\n• KASIR: ${ks.st === 'idle' ? 'jaga kasir' : 'sedang melapor'}\n• STOK-BOT: ${bs.cur ? 'terakhir cek ' + bs.cur.p.name : 'patroli'}\n\nLaporan masuk terakhir:\n${LOG.length ? LOG.map(x => '• ' + x).join('\n') : '• Belum ada.'}\n\nStok toko (data asli):\n${rep()}\n\nCatatan: status agen masih simulasi.`;
+    return `LAPORAN MANAGER · ${now}\n\nAgen aktif ${n}/10.\n` + (w.length ? w.map(a => '• ' + a.role + ': ' + a.task).join('\n') : '• Agen kantor semua standby.') + `\n• KASIR: ${ks.st === 'idle' ? 'jaga kasir' : 'sedang melapor'}\n• STOK-BOT: ${bs.cur ? 'terakhir cek ' + bs.cur.p.name : 'patroli'}\n\nLaporan masuk terakhir:\n${LOG.length ? LOG.map(x => '• ' + x).join('\n') : '• Belum ada.'}\n\nStok toko (data asli):\n${rep()}\n\n${live ? 'Status agen diambil dari Worker (jadwal nyata).' : 'Catatan: status agen masih simulasi.'}`;
   }
   async function mgrAI() {
     if (!WORKER_OK) return 'URL Worker belum diisi di config.js, jadi ringkasan AI belum bisa dibuat.\n\n' + mgrText();
@@ -163,9 +167,9 @@ export function buildOffice(X) {
     animHuman(bot, bs.walk, bs.mv); bl.position.set(p.x, 2.35, p.z); botSpot.x = p.x; botSpot.z = p.z; }
 
   const nearWall = (x, z) => { for (const [a, b, c, d] of WALLS) if (x > Math.min(a, c) - .32 && x < Math.max(a, c) + .32 && z > Math.min(b, d) - .32 && z < Math.max(b, d) + .32) return true; return false; };
-  setInterval(() => { const a = AGS[Math.random() * AGS.length | 0]; if (a.v) return; setA(a, !a.w); tok += AGS.filter(q => q.w).length * (40 + Math.random() * 60 | 0); drawB(); }, 1800); drawB();
+  setInterval(() => { const a = AGS[Math.random() * AGS.length | 0]; if (live || a.v) return; setA(a, !a.w); tok += AGS.filter(q => q.w).length * (40 + Math.random() * 60 | 0); drawB(); }, 1800); drawB();
   return {
-    solids: [], state: () => ({ tok, mgrNote: ks.st === 'talk' ? 'menerima laporan kasir' : (Date.now() - ks.inbox < 60000 && ks.inbox ? 'laporan siap dibaca' : ''), agents: AGS.map(a => ({ role: a.role, w: a.w, task: a.task, away: !!a.v, x: a.h.g.position.x, z: a.h.g.position.z, mv: a.mv, talk: !!a.v && a.v.st === 'talk', tx: a.v ? a.v.to.L.seat[0] : 0, tz: a.v ? a.v.to.L.seat[1] : 0, note: a.v ? (a.v.st === 'back' ? 'balik ke meja' : a.v.txt + ' → ' + a.v.to.role) : '' })), walkers: [{ role: 'KASIR', x: kp.x, z: kp.z, mv: ks.mv, st: ks.st, w: ks.st !== 'idle', note: ({ idle: 'jaga kasir', out: 'lapor ke manager', talk: 'melapor ke manager', back: 'balik ke kasir' })[ks.st] }, { role: 'STOK', x: bot.g.position.x, z: bot.g.position.z, mv: bs.mv, w: bs.wait <= 0, note: bs.cur ? 'cek ' + bs.cur.p.name.slice(0, 16) : 'patroli stok' }] }), update(t, dt) { visitTick(dt); AGS.forEach(a => { if (a.v) return; const w = a.w ? 1 : 0; a.h.g.position.y = -.36; a.h.L.rotation.x = a.h.R.rotation.x = -1.45;   // duduk di kursi
+    solids: [], state: () => ({ tok, mgrNote: ks.st === 'talk' ? 'menerima laporan kasir' : (Date.now() - ks.inbox < 60000 && ks.inbox ? 'laporan siap dibaca' : ''), agents: AGS.map(a => ({ role: a.role, live, w: a.w, task: a.task, away: !!a.v, x: a.h.g.position.x, z: a.h.g.position.z, mv: a.mv, talk: !!a.v && a.v.st === 'talk', tx: a.v ? a.v.to.L.seat[0] : 0, tz: a.v ? a.v.to.L.seat[1] : 0, note: a.v ? (a.v.st === 'back' ? 'balik ke meja' : a.v.txt + ' → ' + a.v.to.role) : '' })), walkers: [{ role: 'KASIR', x: kp.x, z: kp.z, mv: ks.mv, st: ks.st, w: ks.st !== 'idle', note: ({ idle: 'jaga kasir', out: 'lapor ke manager', talk: 'melapor ke manager', back: 'balik ke kasir' })[ks.st] }, { role: 'STOK', x: bot.g.position.x, z: bot.g.position.z, mv: bs.mv, w: bs.wait <= 0, note: bs.cur ? 'cek ' + bs.cur.p.name.slice(0, 16) : 'patroli stok' }] }), update(t, dt) { visitTick(dt); AGS.forEach(a => { if (a.v) return; const w = a.w ? 1 : 0; a.h.g.position.y = -.36; a.h.L.rotation.x = a.h.R.rotation.x = -1.45;   // duduk di kursi
         a.h.aL.rotation.x = w ? -1.15 + Math.sin(t * 10 + a.i) * .1 : -.5; a.h.aR.rotation.x = w ? -1.15 + Math.cos(t * 9 + a.i) * .1 : -.5; }); kasirTick(dt); botTick(dt); },
     inside: (x, y, z) => y > .3 && y < 3.2 && ((x > 8.3 && x < X1 - .1 && z > -5.9 && z < 5.9 && !nearWall(x, z)) || (x > 7.75 && x <= 8.3 && z > 1 && z < 2.2)),
     clamp(p, RW, RZN, RZP) {
