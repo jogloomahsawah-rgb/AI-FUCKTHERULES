@@ -28,7 +28,7 @@ export function chat(el, ctx) {
       const j = await api('/chat', { messages: hist.map(({ role, text }) => ({ role, text })) }), c = j.cek, steps = [...new Set((j.log || []).filter(x => /^\w+:\w+$/.test(x)).map(x => x.split(':')[1]))];
       const extra = (steps.length ? `<div class="ai-steps">Langkah agen: ${steps.map(esc).join(' → ')}</div>` : '') + (c ? `<div class="ai-steps">${esc(c.maker)}${c.checker ? ' → dicek ' + esc(c.checker) + ': ' + esc(c.verdict) : ' · ' + esc(c.verdict)}</div>` : '') + (steps.includes('ajukan_aksi') ? '<button class="ai-btn" data-go="persetujuan">Buka Persetujuan</button>' : '');
       w.remove(); const reply = j.reply || 'Tidak ada jawaban.'; hist.push({ role: 'model', text: reply, extra }); bub(reply, false, extra);
-    } catch (x) { w.remove(); hist.pop(); bub('Gagal: ' + x.message); }
+    } catch (x) { w.remove(); hist.pop(); bub('Gagal: ' + x.message + (x.log?.length ? '\n\nDetail:\n- ' + x.log.join('\n- ') : '')); }
     save(); busy = false;
   };
   el.querySelector('#aiF').onsubmit = e => { e.preventDefault(); const q = el.querySelector('#aiQ'), t = q.value.trim(); q.value = ''; send(t); };

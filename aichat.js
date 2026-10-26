@@ -37,5 +37,5 @@ export const adminLogout = () => signOut(auth);
 export { WORKER_OK };
 export async function api(path, body) {
   const r = await fetch(WORKER + path, { method: body ? 'POST' : 'GET', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + await getToken() }, body: body ? JSON.stringify(body) : undefined });
-  const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || 'HTTP ' + r.status); return j;
+  const j = await r.json().catch(() => ({})); if (!r.ok) { const x = new Error(j.error || 'HTTP ' + r.status); x.log = j.log; throw x; } return j;
 }
