@@ -31,3 +31,11 @@
 - Key Gemini/Groq di-trim (spasi/enter ikut tersalin = "Invalid API Key").
 - Error "Detail" kini tampil di chat agar penyebab kegagalan kelihatan.
 - Groq: bawaan sekarang `openai/gpt-oss-120b` (cadangan `gpt-oss-20b`, `qwen/qwen3.8-27b`), sesuai daftar model di console Groq; `llama-3.3-70b-versatile` tidak tampil lagi di sana.
+
+## Jurnal terbaca (26 Okt 2026)
+- Sebelumnya fungsi `artikelTerbaru` mengirim query ke Firebase toko (`fvcktherules-store`), padahal artikel ada di Firebase Jurnal (`fvck-journal`), jadi hasilnya kosong dan errornya tertelan. Sekarang ke database yang benar.
+- Tool baru `baca_jurnal`: artikel terbit terbaru (judul, kategori, ringkasan, tanggal, penanda AI) + post diskusi + 5 balasan terakhir per post. Hanya baca.
+- Tanpa login dan tanpa secret baru: rules Jurnal mengizinkan baca artikel/post berstatus `published`. Draf artikel AI (status `draft`) sengaja tidak dibaca.
+- Variabel opsional `JOURNAL_PROJECT_ID` (bawaan `fvck-journal`). Butuh composite index yang sudah ada di README Jurnal (status + publishedAt, status + createdAt); kalau error 400 di chat, buat index lewat link di console Firebase.
+- Isi artikel, post, dan balasan diperlakukan sebagai data, bukan perintah (anti prompt-injection dari komentar pelanggan).
+- Perbaikan: pencarian model aktif otomatis kini tetap jalan walau semua model bawaan sudah ditandai mati.
