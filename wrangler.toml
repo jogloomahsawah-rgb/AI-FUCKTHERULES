@@ -16,6 +16,7 @@ PRIVATE_COLS = "orders,aiTasks,aiApprovals,aiDrafts"  # harus menolak akses publ
 CROSSCHECK = "on"                           # cek silang untuk CHAT saja
 TREND_FEEDS = "https://feeds.bbci.co.uk/sport/football/rss.xml"   # feed RSS publik untuk sinyal tren bola (judul saja). Cek URL masih aktif; kosongkan "" untuk mematikan
 CROSSCHECK_JOBS = "off"                     # tugas terjadwal tanpa cek silang (hemat 1 panggilan per tugas)
+STOK_MIN = "5"                              # ambang stok "menipis" untuk tool cek_stok dan Ringkasan
 AI_DAILY_CAP = "120"                        # anggaran panggilan AI/hari untuk tugas terjadwal; lewat ini jalan tanpa AI (chat tetap jalan)                           # "off" untuk mematikan pemeriksaan silang
 # Rahasia: npx wrangler secret put GEMINI_API_KEY
 

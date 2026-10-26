@@ -2,7 +2,7 @@
    Dibagi jadi ruangan per divisi (MANAGER, OPERASIONAL, MARKETING, DEVELOPMENT, RAPAT) dengan koridor di tengah.
    Agen saling samper jalan kaki untuk lapor (daftar di layout.js). Ada juga KASIR-AI dan STOK-BOT. Data = produk publik toko. */
 import { WORKER, WORKER_OK } from './config.js?v=1';
-import { getToken, A } from './aichat.js?v=1';
+import { getToken, A } from './aichat.js?v=2';
 import { ROOMS, DOORS, AGENTS, WALLS, joinPath, LINKS, OFFICE_X2 } from './layout.js?v=2';
 
 export function buildOffice(X) {
