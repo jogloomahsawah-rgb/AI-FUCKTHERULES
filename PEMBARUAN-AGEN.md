@@ -23,3 +23,11 @@
 2. Pastikan secret `GEMINI_API_KEY`, `GROQ_API_KEY`, `FIREBASE_SA` terisi. Variabel baru opsional: `STOK_MIN`.
 3. Tes bertahap: buka Setelan (cek centang koneksi) > Chat "cek stok" > Karyawan > minta "jadwalkan cek stok tiap jam 7" lalu setujui di Persetujuan.
 4. `chat.html` adalah halaman lama (masih ada `GANTI-SUBDOMAIN`); tidak dipakai lagi, boleh dihapus.
+
+## Perbaikan model AI (26 Okt 2026)
+- Gemini 2.5 Flash/Flash-Lite ditutup untuk akun baru (404) dan `llama-3.1-8b-instruct` di Workers AI dipensiunkan 2026-05-30. Bawaan sekarang: `gemini-flash-latest` (alias Flash terbaru) dan `@cf/google/gemma-4-26b-a4b-it` (cadangan `@cf/zai-org/glm-4.7-flash`).
+- Model yang mati (404/deprecated) dilewati otomatis; kalau semua bawaan mati, Worker menanyakan daftar model aktif ke Gemini/Groq lalu memakainya.
+- Nilai lama di Variables Cloudflare (`GEMINI_MODEL`, `CF_MODEL`) tidak lagi merusak: model baru tetap dicoba setelahnya. Tetap disarankan memperbarui atau menghapusnya.
+- Key Gemini/Groq di-trim (spasi/enter ikut tersalin = "Invalid API Key").
+- Error "Detail" kini tampil di chat agar penyebab kegagalan kelihatan.
+- Groq: bawaan sekarang `openai/gpt-oss-120b` (cadangan `gpt-oss-20b`, `qwen/qwen3.8-27b`), sesuai daftar model di console Groq; `llama-3.3-70b-versatile` tidak tampil lagi di sana.

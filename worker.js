@@ -73,7 +73,7 @@ async function gemini(e, msgs, decl) {
     else if (m.tool_calls) contents.push({ role: 'model', parts: m.raw || m.tool_calls.map(c => ({ functionCall: { name: c.name, args: c.args } })) });
     else contents.push({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: String(m.content) }] });
   }
-  const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${e.GEMINI_MODEL}:generateContent`, { method: 'POST', headers: { 'x-goog-api-key': e.GEMINI_API_KEY, 'Content-Type': 'application/json' },
+  const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${e.GEMINI_MODEL}:generateContent`, { method: 'POST', headers: { 'x-goog-api-key': String(e.GEMINI_API_KEY).trim(), 'Content-Type': 'application/json' },
     body: JSON.stringify({ systemInstruction: { parts: [{ text: msgs[0].content }] }, contents: contents.map(({ role, parts }) => ({ role, parts })), ...(decl?.length ? { tools: [{ functionDeclarations: decl }] } : {}) }) });
   if (!r.ok) throw new Error('gemini ' + r.status + ' ' + (await r.text()).slice(0, 140));
   const parts = (await r.json()).candidates?.[0]?.content?.parts || [];
@@ -82,13 +82,17 @@ async function gemini(e, msgs, decl) {
 async function groq(e, msgs, decl) {
   const messages = msgs.map(m => m.role === 'tool' ? { role: 'tool', tool_call_id: m.tool_call_id, content: JSON.stringify(m.content) }
     : m.tool_calls ? { role: 'assistant', content: m.content || null, tool_calls: m.tool_calls.map(c => ({ id: c.id, type: 'function', function: { name: c.name, arguments: JSON.stringify(c.args) } })) } : { role: m.role, content: String(m.content) });
-  const r = await fetch('https://api.groq.com/openai/v1/chat/completions', { method: 'POST', headers: { Authorization: 'Bearer ' + e.GROQ_API_KEY, 'Content-Type': 'application/json' },
+  const r = await fetch('https://api.groq.com/openai/v1/chat/completions', { method: 'POST', headers: { Authorization: 'Bearer ' + String(e.GROQ_API_KEY).trim(), 'Content-Type': 'application/json' },
     body: JSON.stringify({ model: e.GROQ_MODEL, messages, ...(decl?.length ? { tools: decl.map(oa) } : {}) }) });
   if (!r.ok) throw new Error('groq ' + r.status + ' ' + (await r.text()).slice(0, 140));
   const m = (await r.json()).choices?.[0]?.message || {};
   return { text: (m.content || '').trim(), calls: (m.tool_calls || []).map(c => { let a = {}; try { a = JSON.parse(c.function.arguments || '{}'); } catch { } return { id: c.id, name: c.function.name, args: a }; }) };
 }
-async function cfai(e, msgs) { const r = await e.AI.run(e.CF_MODEL, { messages: msgs.map(({ role, content }) => ({ role, content: String(content) })) }); return { text: (r.response || '').trim(), calls: [] }; }
+async function cfai(e, msgs) {
+  const r = await e.AI.run(e.CF_MODEL, { messages: msgs.map(({ role, content }) => ({ role, content: String(content) })) });
+  const t = typeof r === 'string' ? r : typeof r?.response === 'string' ? r.response : r?.choices?.[0]?.message?.content ?? r?.result?.response ?? '';   // model lama: {response}; model baru: format OpenAI
+  return { text: String(t || '').trim(), calls: [] };
+}
 const P = { gemini, groq, cfai };
 let USED = 0;   // jumlah panggilan model sejak isolate hidup (dipakai menghitung anggaran harian)
 for (const k of Object.keys(P)) { const f = P[k]; P[k] = (...a) => { USED++; return f(...a); }; }
@@ -183,17 +187,34 @@ TOOLS.ringkas_lacak = async (e, t) => { const l = await list(e, t, 'lacak', 100)
 
 // ===== inti: pembuat -> pemeriksa -> revisi =====
 // Tiap penyedia punya beberapa model (kuota gratis tiap model terpisah). Terakhir selalu Workers AI (tanpa API key).
-const MODELS = (e, k) => k === 'gemini' ? [e.GEMINI_MODEL || 'gemini-2.5-flash', 'gemini-2.5-flash-lite']
-  : k === 'groq' ? [e.GROQ_MODEL || 'llama-3.3-70b-versatile', 'llama-3.1-8b-instant'] : [e.CF_MODEL || '@cf/meta/llama-3.1-8b-instruct'];
+// Groq: daftar sesuai console (26 Okt 2026), llama-3.x tidak tampil lagi. Gemini/CF: lihat catatan di PEMBARUAN-AGEN.md
+const MODELS = (e, k) => k === 'gemini' ? [e.GEMINI_MODEL || 'gemini-flash-latest', 'gemini-flash-latest', 'gemini-flash-lite-latest']   // alias -latest mengikuti Flash terbaru; 2.5 sudah ditutup untuk akun baru
+  : k === 'groq' ? [e.GROQ_MODEL || 'openai/gpt-oss-120b', 'openai/gpt-oss-120b', 'openai/gpt-oss-20b', 'qwen/qwen3.8-27b'] : [e.CF_MODEL || '@cf/google/gemma-4-26b-a4b-it', '@cf/google/gemma-4-26b-a4b-it', '@cf/zai-org/glm-4.7-flash'];   // llama-3.1-8b-instruct di Workers AI dipensiunkan 2026-05-30
+const DEAD = new Set(), FOUND = {};   // model yang sudah terbukti mati (404/deprecated) dilewati selama Worker hidup; FOUND = hasil penemuan otomatis
+const mati = m => /\b404\b|deprecated|no longer available|model_not_found|decommission/i.test(m);
+async function discover(e, k) {   // semua model bawaan mati: tanya penyedia model apa yang aktif untuk key ini
+  if (FOUND[k]) return FOUND[k]; let out = [];
+  try {
+    if (k === 'gemini') { const r = await fetch('https://generativelanguage.googleapis.com/v1beta/models?pageSize=100', { headers: { 'x-goog-api-key': String(e.GEMINI_API_KEY).trim() } }); if (r.ok) out = ((await r.json()).models || []).filter(m => (m.supportedGenerationMethods || []).includes('generateContent') && /flash/.test(m.name) && !/image|tts|live|audio|embed|robotics|computer/.test(m.name)).map(m => m.name.replace('models/', '')).sort((x, y) => (/lite/.test(x) ? 1 : 0) - (/lite/.test(y) ? 1 : 0)).slice(0, 2); }
+    else if (k === 'groq') { const r = await fetch('https://api.groq.com/openai/v1/models', { headers: { Authorization: 'Bearer ' + String(e.GROQ_API_KEY).trim() } }); if (r.ok) out = ((await r.json()).data || []).map(m => m.id).filter(id => /llama|qwen|gpt-oss/.test(id) && !/guard|whisper|tts|prompt/.test(id)).slice(0, 2); }
+  } catch { }
+  return (FOUND[k] = out);
+}
+async function withModels(e, k, fn, log) {   // coba tiap model penyedia k; model mati dicatat, lalu cari model aktif otomatis
+  let err; const base = [...new Set(MODELS(e, k))].filter(m => !DEAD.has(k + '/' + m));
+  const run = async list => { for (const m of list) {
+    const e2 = Object.assign(Object.create(e), k === 'gemini' ? { GEMINI_MODEL: m } : k === 'groq' ? { GROQ_MODEL: m } : { CF_MODEL: m });
+    try { return { v: await fn(e2) }; } catch (x) { err = x; log && log.push(k + '/' + m + ' gagal: ' + x.message); if (mati(x.message)) DEAD.add(k + '/' + m); } } };
+  let r = await run(base); if (r) return r.v;
+  if (k !== 'cfai' && err && mati(err.message)) { const f = (await discover(e, k)).filter(m => !base.includes(m) && !DEAD.has(k + '/' + m)); if (f.length) { log && log.push(k + ': mencoba model hasil penemuan otomatis ' + f.join(', ')); r = await run(f); if (r) return r.v; } }
+  throw err || new Error(k + ' tidak punya model');
+}
 async function makeWithFallback(e, fn, log) {
   const order = (e.MAKER_ORDER || 'gemini,groq').split(',').map(s => s.trim()).filter(Boolean); if (!order.includes('cfai')) order.push('cfai');
   for (const k of order) {
     if (!['gemini', 'groq', 'cfai'].includes(k)) continue;
     if (!has(e, k)) { log.push(k + ': ' + (k === 'cfai' ? 'binding AI belum dipasang' : 'API key belum diisi (Secret)')); continue; }
-    for (const m of [...new Set(MODELS(e, k))]) {
-      const e2 = Object.assign(Object.create(e), k === 'gemini' ? { GEMINI_MODEL: m } : k === 'groq' ? { GROQ_MODEL: m } : { CF_MODEL: m });
-      try { return { maker: k, out: await fn(k, e2) }; } catch (x) { log.push(k + '/' + m + ' gagal: ' + x.message); }
-    }
+    try { return { maker: k, out: await withModels(e, k, e2 => fn(k, e2), log) }; } catch { }   // alasan tiap kegagalan sudah masuk log
   }
   return null;
 }
@@ -202,11 +223,11 @@ async function verify(e, maker, ask, facts, draft, log, check = true) {
   if (check && e.CROSSCHECK !== 'off' && (facts.length || /\d/.test(draft))) {
     cek.verdict = 'TIDAK_DICEK';
     for (const k of ['groq', 'gemini', 'cfai'].filter(k => k !== maker && has(e, k))) {
-      try { cek = { maker, checker: k, ...await review(e, k, ask, facts, draft) }; break; } catch (x) { log.push(k + ' gagal cek: ' + x.message); }
+      try { cek = { maker, checker: k, ...await withModels(e, k, e2 => review(e2, k, ask, facts, draft)) }; break; } catch (x) { log.push(k + ' gagal cek: ' + x.message); }
     }
     if (cek.verdict === 'REVISI') {
       try { const u = `PERMINTAAN:\n${ask}\n\nDATA:\n${JSON.stringify(facts).slice(0, 6000)}\n\nJAWABAN SEBELUMNYA:\n${draft}\n\nMASALAH DARI PEMERIKSA:\n${cek.masalah.join('\n')}\n\nTulis ulang jawaban. Hanya pakai angka dari DATA. Singkat.`;
-        reply = (await P[maker](e, [{ role: 'system', content: SYSTEM }, { role: 'user', content: u }], null)).text || draft; cek.verdict = 'REVISI_DIPERBAIKI'; } catch { cek.verdict = 'REVISI_GAGAL'; }
+        reply = (await withModels(e, maker, e2 => P[maker](e2, [{ role: 'system', content: SYSTEM }, { role: 'user', content: u }], null))).text || draft; cek.verdict = 'REVISI_DIPERBAIKI'; } catch { cek.verdict = 'REVISI_GAGAL'; }
     } else if (cek.verdict === 'TOLAK') reply = `Ditolak pemeriksa (${cek.checker}): ${cek.masalah.join('; ') || 'tidak ada alasan'}`;
   }
   return { reply, cek };
