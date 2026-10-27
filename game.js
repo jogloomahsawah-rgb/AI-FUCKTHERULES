@@ -1,7 +1,7 @@
-import { initTopView } from './topview.js?v=5';
+import { initTopView } from './topview.js?v=6';
 import { S, initShop, bindUI, openCatalog, openProduct, openCart, openCheckout, openReceipt, hasReceipt, closePanel, panelOpen, cartCount, showRaw, getBannerText, rp, MAIN_ORIGIN, logout, esc } from './shop.js?v=20261032';
 import { initPhone } from './phone.js?v=20261110';
-import { buildOffice } from './office.js?v=7';
+import { buildOffice } from './office.js?v=8';
 let OFF = null;
 const $ = s => document.querySelector(s);
 const cv = $('#game');
@@ -667,7 +667,7 @@ if (renderer) {
 /* ---------- alur layar ---------- */
 const howHTML = `<div class="note"><b>DESKTOP</b><br>WASD = jalan · geser mouse (tahan klik) / ← → = putar kamera · E = ambil baju / interaksi · V = ganti sudut pandang (orang ketiga/orang pertama) · ESC = tutup panel.</div>
 <div class="note"><b>MOBILE</b><br>Joystick kiri bawah = jalan · geser layar = putar kamera · tombol E (atau tap tulisan "TAP …") = interaksi · tombol TPV/FPV di atas = ganti sudut pandang.</div>
-<div class="note"><b>KANTOR ADMIN</b><br>Jalan ke OFFICE lewat pintu di sisi kanan toko. Kantor dibagi ruangan: MANAGER, OPERASIONAL (commerce + logistik), MARKETING (creative + konten IG), DEVELOPMENT (developer + QA + security), dan RAPAT. Agen jalan kaki lewat koridor untuk saling lapor. Tombol TPV / FPV / ATAS mengganti sudut pandang: ATAS = peta kantor (geser untuk memutar, cubit untuk zoom). Chat AI ada di aplikasi AI di dalam HP. Ini bukan web pelanggan, tidak ada fitur belanja.</div>
+<div class="note"><b>KANTOR ADMIN</b><br>Jalan ke OFFICE lewat pintu di sisi kanan toko. Kantor dibagi ruangan: MANAGER, OPERASIONAL (commerce + logistik), MARKETING (creative + konten IG), DEVELOPMENT (developer + QA + security), RAPAT, dan KEUANGAN (agen kas dan ongkir, ada papan grafik hidup). Agen jalan kaki lewat koridor untuk saling lapor. Tombol TPV / FPV / ATAS mengganti sudut pandang: ATAS = peta kantor (geser untuk memutar, cubit untuk zoom). Chat AI ada di aplikasi AI di dalam HP. Ini bukan web pelanggan, tidak ada fitur belanja.</div>
 <div class="note">Aksesoris ada di <b>meja AKSESORIS</b> (dinding kiri, di samping kaca). Dekati meja lalu tekan E. Aksesoris juga ada di KATALOG → chip AKSESORIS.</div>
 <div class="note">Coba tendang bola di lantai. Cari papan drop di dinding belakang.</div>`;
 function play() {

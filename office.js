@@ -1,9 +1,9 @@
 /* AI OFFICE — di sisi kanan toko, tersambung lewat pintu di dinding kanan (x=8.1, z=1.6).
-   Dibagi jadi ruangan per divisi (MANAGER, OPERASIONAL, MARKETING, DEVELOPMENT, RAPAT) dengan koridor di tengah.
+   Dibagi jadi ruangan per divisi (MANAGER, OPERASIONAL, MARKETING, DEVELOPMENT, RAPAT, KEUANGAN) dengan koridor di tengah.
    Agen saling samper jalan kaki untuk lapor (daftar di layout.js). Ada juga KASIR-AI dan STOK-BOT. Data = produk publik toko. */
 import { WORKER, WORKER_OK } from './config.js?v=1';
 import { getToken, A } from './aichat.js?v=2';
-import { ROOMS, DOORS, AGENTS, WALLS, joinPath, LINKS, OFFICE_X2 } from './layout.js?v=2';
+import { ROOMS, DOORS, AGENTS, WALLS, joinPath, LINKS, OFFICE_X2 } from './layout.js?v=3';
 
 export function buildOffice(X) {
   const { THREE, scene, M, ctex, tm, T, bx, pln, makeHuman, animHuman, say, S, toast, getHangers, getSolids, lightsQ, SPOTS, STATIC, CM } = X;
@@ -51,10 +51,9 @@ export function buildOffice(X) {
     STATIC.push([Math.min(x1, x2) - .1, Math.min(z1, z2) - .1, Math.max(x1, x2) + .1, Math.max(z1, z2) + .1]); });
   DOORS.forEach(d => { [-1, 1].forEach(sg => bx(.08, 2.4, .24, metal, d.x + sg * d.w / 2, 1.2, d.z)); bx(d.w, .12, .24, metal, d.x, 2.4, d.z);
     pln(1.6, .4, sign(d.name), d.x, 2.78, d.z + d.side * .13, d.side > 0 ? 0 : Math.PI); });
-  /* RAPAT: meja besar + 6 kursi + papan tulis (hiasan) */
-  { const rx = 23.0, rz = 4.4; bx(3.2, .07, 1.2, woodM, rx, .76, rz, { cs: true }); [-1.4, 1.4].forEach(a => [-.5, .5].forEach(b => bx(.06, .72, .06, metal, rx + a, .36, rz + b))); STATIC.push([rx - 1.6, rz - .6, rx + 1.6, rz + .6]);
-    [[-.8, -1], [.8, -1], [-.8, 1], [.8, 1], [-2.0, 0], [2.0, 0]].forEach(([a, b]) => chair(rx + a, rz + b * .95, b === 0 ? (a < 0 ? -Math.PI / 2 : Math.PI / 2) : (b < 0 ? Math.PI : 0)));
-    pln(2.8, 1.1, basic(0xf4f4f4), X1 - .03, 1.8, rz, -Math.PI / 2); }
+  /* RAPAT (x 18.4..22.8): meja + 4 kursi, jalur taman di x=19.4 tetap kosong */
+  { const rx = 21.3, rz = 4.4; bx(2.4, .07, 1.2, woodM, rx, .76, rz, { cs: true }); [-1.0, 1.0].forEach(a => [-.5, .5].forEach(b => bx(.06, .72, .06, metal, rx + a, .36, rz + b))); STATIC.push([rx - 1.2, rz - .6, rx + 1.2, rz + .6]);
+    [[-.6, -1], [.6, -1], [-.6, 1], [.6, 1]].forEach(([a, b]) => chair(rx + a, rz + b * .95, b < 0 ? Math.PI : 0)); }
   const mkLab = () => { const c = document.createElement('canvas'); c.width = 512; c.height = 128; const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
     const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: t, transparent: true, depthWrite: false, fog: false })); s.scale.set(1.6, .4, 1);
     s.draw = (a, b, on) => { const g = c.getContext('2d'); g.clearRect(0, 0, 512, 128); g.fillStyle = '#0a0a0a'; g.fillRect(0, 0, 512, 128); g.strokeStyle = '#f2f2f2'; g.lineWidth = 6; g.strokeRect(3, 3, 506, 122);
@@ -64,7 +63,8 @@ export function buildOffice(X) {
     COMMERCE: [0xd9482b, ['Cek order belum lunas', 'Rekap pembayaran', 'Cek resi']], LOGISTIK: [0xe3a008, ['Cek resi J&T', 'Hitung ongkir', 'Update pengiriman']],
     CREATIVE: [0x8e44ad, ['Tulis caption IG', 'Susun hashtag', 'Brief desain']], 'KONTEN IG': [0xe84393, ['Kalender konten', 'Jadwalkan draft', 'Riset tren']],
     DEVELOPER: [0x2f6bff, ['Review kode', 'Siapkan patch', 'Cek bug checkout']], QA: [0x16a085, ['Tes alur checkout', 'Tes login', 'Cek regresi']],
-    SECURITY: [0x2c3e50, ['Cek aturan Firestore', 'Audit akses', 'Scan API key']] };
+    SECURITY: [0x2c3e50, ['Cek aturan Firestore', 'Audit akses', 'Scan API key']],
+    KEUANGAN: [0x1f9d5c, ['Rekap kas harian', 'Cek ongkir kurir', 'Cocokkan order lunas']] };
   const AGS = AGENTS.map((L, i) => {
     const [col, tasks] = INFO[L.role], scr = desk(L.x, L.z, L.w), ch = chair(L.seat[0], L.seat[1] + .02), h = makeHuman({ top: col, pants: 0x1a1a1a, shoes: 0x111111 }); h.g.position.set(L.seat[0], 0, L.seat[1]); h.g.rotation.y = Math.PI; scene.add(h.g);
     const l = mkLab(); l.position.set(L.seat[0], 2.45, L.seat[1]); const a = { role: L.role, L, tasks, scr, h, l, w: false, task: '', i, v: null, walk: 0, mv: false };
@@ -78,11 +78,31 @@ export function buildOffice(X) {
   pollLive(); setInterval(pollLive, 60000);
   window.fvckOffice = { markBreak: role => { brk[role] = performance.now(); }, report: ai => ai ? mgrAI() : Promise.resolve(mgrText()), update: (role, o) => { if (role === 'ORCHESTRATOR') role = 'MANAGER'; const a = AGS.find(q => q.role === role); if (a) setA(a, o.status === 'working', o.task); } };
 
+  /* KEUANGAN: papan grafik hidup di dinding timur, koin berputar di atas meja, layar berdenyut saat kerja */
+  const fa = AGS.find(a => a.role === 'KEUANGAN'), fc = document.createElement('canvas'); fc.width = 512; fc.height = 320;
+  const ft = new THREE.CanvasTexture(fc); ft.colorSpace = THREE.SRGBColorSpace; pln(2.8, 1.75, new THREE.MeshBasicMaterial({ map: ft, fog: false }), X1 - .03, 1.9, 4.4, -Math.PI / 2);
+  const coinG = new THREE.Group(), coinM = new THREE.Mesh(new THREE.CylinderGeometry(.15, .15, .03, 24), new THREE.MeshBasicMaterial({ color: 0xffc83d })); coinM.rotation.x = Math.PI / 2; coinG.add(coinM); coinG.position.set(fa.L.x, 1.9, fa.L.z - .1); scene.add(coinG);
+  const fin = { b: Array(8).fill(.4), tg: Array(8).fill(.4), h: Array.from({ length: 24 }, (_, i) => .5 + Math.sin(i / 3) * .2), t: 0, d: 0 };
+  const finDraw = work => { const g = fc.getContext('2d'), W = 512, H = 320; g.fillStyle = '#0a0a0a'; g.fillRect(0, 0, W, H); g.strokeStyle = '#f2f2f2'; g.lineWidth = 6; g.strokeRect(4, 4, W - 8, H - 8);
+    g.fillStyle = '#e8ff3a'; g.font = '900 40px Impact, sans-serif'; g.textAlign = 'left'; g.fillText('KAS & ONGKIR', 24, 58);
+    g.fillStyle = work ? '#3ddc84' : '#777'; g.beginPath(); g.arc(W - 40, 44, 10 + (work ? Math.sin(performance.now() / 180) * 3 : 0), 0, 7); g.fill();
+    fin.b.forEach((v, i) => { const bh = v * 120; g.fillStyle = i % 2 ? '#2fb36c' : '#3ddc84'; g.fillRect(28 + i * 58, 250 - bh, 40, bh); });
+    g.strokeStyle = '#ffffff'; g.lineWidth = 3; g.beginPath(); fin.h.forEach((v, i) => { const x = 28 + i * (456 / 23), y = 170 - v * 70; i ? g.lineTo(x, y) : g.moveTo(x, y); }); g.stroke();
+    g.fillStyle = '#bbb'; g.font = '22px monospace'; g.fillText(work ? 'menghitung...' : 'standby', 24, 292); ft.needsUpdate = true; };
+  finDraw(false);
+  function finTick(t, dt) {
+    const work = fa.w && !fa.v; fin.t -= dt; fin.d -= dt;
+    if (fin.t <= 0) { fin.t = work ? .9 : 2.6; fin.tg = fin.tg.map(() => .2 + Math.random() * .75); fin.h.push(Math.max(.1, Math.min(.95, fin.h[fin.h.length - 1] + (Math.random() - .45) * .22))); fin.h.shift(); }
+    fin.b = fin.b.map((v, i) => v + (fin.tg[i] - v) * Math.min(1, dt * 4));
+    if (fin.d <= 0) { fin.d = .07; finDraw(work); }
+    coinG.rotation.y += dt * (work ? 5 : 1.8); coinG.position.y = 1.9 + Math.sin(t * 2) * .05;
+    if (work && !fa.v) fa.scr.material.color.setHSL(.38, .6, .45 + .1 * Math.sin(t * 6)); }
+
   /* papan status di dinding */
   const bc = document.createElement('canvas'); bc.width = 512; bc.height = 160; const bt = new THREE.CanvasTexture(bc); bt.colorSpace = THREE.SRGBColorSpace; let tok = 0;
   pln(2.6, .8, new THREE.MeshBasicMaterial({ map: bt, fog: false }), 10.8, 2.7, -5.97, 0);
   const drawB = () => { const g = bc.getContext('2d'), n = AGS.filter(a => a.w).length + (bs.wait <= 0 ? 1 : 0) + (ks.st !== 'idle' ? 1 : 0); g.fillStyle = '#0a0a0a'; g.fillRect(0, 0, 512, 160); g.strokeStyle = '#f2f2f2'; g.lineWidth = 6; g.strokeRect(4, 4, 504, 152);
-    g.fillStyle = '#e8ff3a'; g.font = '900 40px Impact, sans-serif'; g.textAlign = 'left'; g.fillText('AGEN AKTIF ' + n + '/10', 24, 56); g.fillStyle = '#f2f2f2'; g.font = '26px monospace'; g.fillText('TOKEN ' + tok.toLocaleString('id-ID') + ' · RP 0', 24, 100); g.fillStyle = '#888'; g.font = '20px monospace'; g.fillText('DEMO · BUKAN DATA NYATA', 24, 138); bt.needsUpdate = true; };
+    g.fillStyle = '#e8ff3a'; g.font = '900 40px Impact, sans-serif'; g.textAlign = 'left'; g.fillText('AGEN AKTIF ' + n + '/11', 24, 56); g.fillStyle = '#f2f2f2'; g.font = '26px monospace'; g.fillText('TOKEN ' + tok.toLocaleString('id-ID') + ' · RP 0', 24, 100); g.fillStyle = '#888'; g.font = '20px monospace'; g.fillText('DEMO · BUKAN DATA NYATA', 24, 138); bt.needsUpdate = true; };
 
   /* laporan dari data produk publik toko */
   const rep = () => { const P = S.products || [], A = S.acc || [], c = b => P.filter(p => p.badge === b).length, low = P.filter(p => p.badge === 'ready' && p.stock.length <= 1).map(p => p.name);
@@ -140,7 +160,7 @@ export function buildOffice(X) {
   /* MANAGER: merangkum laporan agen + kasir + stok, lalu melapor ke admin (kamu) */
   function mgrText() {
     const now = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }).replace('.', ':'), w = AGS.filter(a => a.w), n = w.length + (bs.wait <= 0 ? 1 : 0) + (ks.st !== 'idle' ? 1 : 0);
-    return `LAPORAN MANAGER · ${now}\n\nAgen aktif ${n}/10.\n` + (w.length ? w.map(a => '• ' + a.role + ': ' + a.task).join('\n') : '• Agen kantor semua standby.') + `\n• KASIR: ${ks.st === 'idle' ? 'jaga kasir' : 'sedang melapor'}\n• STOK-BOT: ${bs.cur ? 'terakhir cek ' + bs.cur.p.name : 'patroli'}\n\nLaporan masuk terakhir:\n${LOG.length ? LOG.map(x => '• ' + x).join('\n') : '• Belum ada.'}\n\nStok toko (data asli):\n${rep()}\n\n${live ? 'Status agen diambil dari Worker (jadwal nyata).' : 'Catatan: status agen masih simulasi.'}`;
+    return `LAPORAN MANAGER · ${now}\n\nAgen aktif ${n}/11.\n` + (w.length ? w.map(a => '• ' + a.role + ': ' + a.task).join('\n') : '• Agen kantor semua standby.') + `\n• KASIR: ${ks.st === 'idle' ? 'jaga kasir' : 'sedang melapor'}\n• STOK-BOT: ${bs.cur ? 'terakhir cek ' + bs.cur.p.name : 'patroli'}\n\nLaporan masuk terakhir:\n${LOG.length ? LOG.map(x => '• ' + x).join('\n') : '• Belum ada.'}\n\nStok toko (data asli):\n${rep()}\n\n${live ? 'Status agen diambil dari Worker (jadwal nyata).' : 'Catatan: status agen masih simulasi.'}`;
   }
   async function mgrAI() {
     if (!WORKER_OK) return 'URL Worker belum diisi di config.js, jadi ringkasan AI belum bisa dibuat.\n\n' + mgrText();
@@ -170,7 +190,7 @@ export function buildOffice(X) {
   setInterval(() => { const a = AGS[Math.random() * AGS.length | 0]; if (live || a.v) return; setA(a, !a.w); tok += AGS.filter(q => q.w).length * (40 + Math.random() * 60 | 0); drawB(); }, 1800); drawB();
   return {
     solids: [], state: () => ({ tok, mgrNote: ks.st === 'talk' ? 'menerima laporan kasir' : (Date.now() - ks.inbox < 60000 && ks.inbox ? 'laporan siap dibaca' : ''), agents: AGS.map(a => ({ role: a.role, live, w: a.w, task: a.task, away: !!a.v, x: a.h.g.position.x, z: a.h.g.position.z, mv: a.mv, talk: !!a.v && a.v.st === 'talk', tx: a.v ? a.v.to.L.seat[0] : 0, tz: a.v ? a.v.to.L.seat[1] : 0, note: a.v ? (a.v.st === 'back' ? 'balik ke meja' : a.v.txt + ' → ' + a.v.to.role) : '' })), walkers: [{ role: 'KASIR', x: kp.x, z: kp.z, mv: ks.mv, st: ks.st, w: ks.st !== 'idle', note: ({ idle: 'jaga kasir', out: 'lapor ke manager', talk: 'melapor ke manager', back: 'balik ke kasir' })[ks.st] }, { role: 'STOK', x: bot.g.position.x, z: bot.g.position.z, mv: bs.mv, w: bs.wait <= 0, note: bs.cur ? 'cek ' + bs.cur.p.name.slice(0, 16) : 'patroli stok' }] }), update(t, dt) { visitTick(dt); AGS.forEach(a => { if (a.v) return; const w = a.w ? 1 : 0; a.h.g.position.y = -.36; a.h.L.rotation.x = a.h.R.rotation.x = -1.45;   // duduk di kursi
-        a.h.aL.rotation.x = w ? -1.15 + Math.sin(t * 10 + a.i) * .1 : -.5; a.h.aR.rotation.x = w ? -1.15 + Math.cos(t * 9 + a.i) * .1 : -.5; }); kasirTick(dt); botTick(dt); },
+        a.h.aL.rotation.x = w ? -1.15 + Math.sin(t * 10 + a.i) * .1 : -.5; a.h.aR.rotation.x = w ? -1.15 + Math.cos(t * 9 + a.i) * .1 : -.5; }); kasirTick(dt); botTick(dt); finTick(t, dt); },
     inside: (x, y, z) => y > .3 && y < 3.2 && ((x > 8.3 && x < X1 - .1 && z > -5.9 && z < 5.9 && !nearWall(x, z)) || (x > 7.75 && x <= 8.3 && z > 1 && z < 2.2)),
     clamp(p, RW, RZN, RZP) {
       const inDoor = p.z > 1 && p.z < 2.2; p.x = Math.max(-RW + .1, Math.min(X1 - .6, p.x));

@@ -46,10 +46,11 @@
 - Peringatan dari kode (bukan AI): saldo negatif, pengeluaran > 1,5x rata-rata 3 bulan dan selisih > Rp100.000, pengeluaran melebihi pemasukan, belum ada pemasukan setelah tanggal 10.
 - Pencocokan order: membandingkan 300 order terbaru di toko dengan transaksi otomatis (aturan sama dengan `sync()` keuangan: DP = nominal DP; lunas/selesai/dikirim = total - ongkir). Melaporkan order yang belum tersinkron, nominal berbeda, dan transaksi yatim. Sinkron di keuangan hanya berjalan saat aplikasinya dibuka, jadi selisih bisa muncul wajar. Kalau aturan di `app.js` keuangan berubah (STATUS_PENUH, HITUNG_ONGKIR), ubah juga di `selisihOrder` pada worker.js.
 - Jadwal otomatis jam 19:00-20:00 WIB (sebelum laporan 20:00). AI dipakai hanya bila data berubah; tombol "Jalankan sekarang" selalu menyegarkan. Hasil masuk Karyawan, Laporan, dan kartu Keuangan di Ringkasan.
-- Belum ada karakter KEUANGAN di kantor 3D (butuh meja dan jalur di `layout.js`); kantor 3D mengabaikan peran baru tanpa error.
+- Karakter KEUANGAN sekarang punya ruangan sendiri di kantor 3D (sebelah RAPAT, pintu di koridor selatan), lengkap dengan papan grafik hidup, koin berputar, dan layar yang berdenyut saat bekerja. Ia ikut saling samper dengan MANAGER, COMMERCE, dan LOGISTIK. RAPAT dipersempit dan mejanya dipindah. Total agen jadi 11.
 
 ### Pasang
 1. Google Cloud Console > project `keuangan-fvck` > IAM & Admin > Service Accounts > buat akun baru > beri role **Cloud Datastore Viewer** > tab Keys > Add key > JSON.
 2. Cloudflare Worker > Settings > Variables and Secrets > tambah Secret `FIREBASE_SA_KEUANGAN` berisi seluruh isi JSON itu. Jangan tempel di chat atau commit ke GitHub.
 3. Deploy ulang `worker.js`. Cek Setelan: "Keuangan ✓". Lalu Chat > chip "Keuangan".
 - Tanpa secret itu, fitur keuangan diam (label "Belum terhubung"), tidak ada error. Jika muncul 403, role belum cukup/belum aktif (butuh beberapa menit).
+- Agen KEUANGAN mengenal kelompok `ongkir` dari tab Ongkir baru: `bulan_ini.ongkir` (masuk, keluar, selisih) dan `keluar_per_grup.ongkir`; ongkir tidak masuk hitungan laba kaos.

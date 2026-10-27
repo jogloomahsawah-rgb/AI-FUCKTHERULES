@@ -553,6 +553,8 @@ async function selisihOrder(e, kt, t) {   // cocokkan order toko vs transaksi ot
     if (nom > 0 && !x) { hasil.belum_tersinkron++; hasil.nominal_belum += nom; if (hasil.contoh.length < 5) hasil.contoh.push({ order: o.id, status: st, nominal: nom }); }
     else if (nom > 0 && Number(x.nominal) !== nom) hasil.nominal_beda++;
     else if (nom <= 0 && x) hasil.kelebihan++;
+    const og = Number(o.ongkir || 0), xo = map.get('ongkir_' + o.id);   // ongkir pelanggan otomatis (grup ongkir), hanya untuk order lunas/selesai/dikirim
+    if (!(xo && (xo.edited || xo.deleted))) { if (['lunas', 'selesai', 'dikirim'].includes(st) && og > 0) { if (!xo) { hasil.belum_tersinkron++; hasil.nominal_belum += og; } else if (Number(xo.nominal) !== og) hasil.nominal_beda++; } else if (xo) hasil.kelebihan++; }
   }
   hasil.catatan = 'Maks 300 order terbaru dibandingkan. Sinkron berjalan saat aplikasi keuangan dibuka.'; void seen; return hasil;
 }
@@ -569,10 +571,10 @@ async function ringkasKeuangan(e, a = {}, t) {
   if (b === now && Number(hariIni().slice(8)) >= 10 && mas === 0) perhatian.push('Belum ada pemasukan tercatat bulan ini sampai tanggal ' + hariIni().slice(8));
   const out = {
     bulan: b, saldo_saat_ini: masuk - keluar,
-    bulan_ini: { masuk: mas, keluar: kel, sisa: mas - kel, keluar_per_grup: { umum: grup('umum'), vendor, kaos_lain: kaosLain }, kaos: { pemasukan: kaosMasuk, pcs: cur.filter(x => x.tipe === 'masuk' && x.grup === 'kaos').reduce((s, x) => s + (Number(x.qty) || 0), 0), laba: kaosMasuk - vendor - kaosLain } },
+    bulan_ini: { masuk: mas, keluar: kel, sisa: mas - kel, keluar_per_grup: { umum: grup('umum'), vendor, kaos_lain: kaosLain, ongkir: grup('ongkir') }, ongkir: { masuk: sumN(cur, x => x.tipe === 'masuk' && x.grup === 'ongkir'), keluar: grup('ongkir'), selisih: sumN(cur, x => x.tipe === 'masuk' && x.grup === 'ongkir') - grup('ongkir') }, kaos: { pemasukan: kaosMasuk, pcs: cur.filter(x => x.tipe === 'masuk' && x.grup === 'kaos').reduce((s, x) => s + (Number(x.qty) || 0), 0), laba: kaosMasuk - vendor - kaosLain } },
     bulan_lalu: { masuk: tot(addM(b, -1), 'masuk'), keluar: tot(addM(b, -1), 'keluar') }, tren_6_bulan: tren,
     pengeluaran_terbesar: cur.filter(x => x.tipe === 'keluar').sort((x, y) => y.nominal - x.nominal).slice(0, 5).map(x => ({ ket: String(x.ket || '').slice(0, 60), nominal: x.nominal, tanggal: x.tanggal, grup: x.grup })),
-    jumlah_transaksi_bulan_ini: cur.length, catatan: 'Saldo = seluruh pemasukan dikurangi seluruh pengeluaran sampai sekarang. Laba kaos = pemasukan kaos dikurangi vendor dan perlengkapan, sama dengan aplikasi keuangan.',
+    jumlah_transaksi_bulan_ini: cur.length, catatan: 'Saldo = seluruh pemasukan dikurangi seluruh pengeluaran sampai sekarang. Laba kaos = pemasukan kaos dikurangi vendor dan perlengkapan (ongkir tidak termasuk), sama dengan aplikasi keuangan. Ongkir masuk/keluar ikut total pemasukan/pengeluaran.',
   };
   if (a.periksa_order === 'ya' || a.periksa_order === true) {
     out.selisih_order = await selisihOrder(e, kt, t); const s = out.selisih_order;

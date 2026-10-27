@@ -1,7 +1,7 @@
 // Tampilan ATAS: denah lengkap gaya kardus = TOKO + KANTOR + DAPUR + TAMAN.
 // Tanpa karakter pemain dan tanpa joystick. Geser = putar, dua jari = zoom + geser peta, scroll = zoom.
 // Agen kantor berjalan ke dapur / taman saat tidak ada kerjaan. KASIR dan STOK-BOT mengikuti posisi asli dari office.js.
-import { ROOMS, DOORS, AGENTS, WALLS, BREAK_EXIT, joinPath, OFFICE_X2 } from './layout.js?v=2';
+import { ROOMS, DOORS, AGENTS, WALLS, BREAK_EXIT, joinPath, OFFICE_X2 } from './layout.js?v=3';
 export function initTopView({ THREE, getState, getHangers, report }) {
   const wrap = document.createElement('div'); wrap.id = 'tv'; wrap.hidden = true;
   wrap.innerHTML = '<canvas></canvas><div class="tv-cards"></div><div class="tv-labels"></div><div class="tv-hint">Geser: putar · cubit: zoom · dua jari: geser peta · ketuk MANAGER untuk laporan</div><div class="tv-rep" hidden><div class="tv-rep-in"><pre></pre><div class="tv-rep-b"><button data-ai>Ringkas dengan AI</button><button data-x>Tutup</button></div></div></div>';
@@ -72,7 +72,7 @@ export function initTopView({ THREE, getState, getHangers, report }) {
   }
 
   /* meja + agen kantor (posisi sama dengan kantor 3D) */
-  const COL = { MANAGER: 0x2b2f3a, COMMERCE: 0xe8643f, LOGISTIK: 0xf0b72a, CREATIVE: 0xa05fc4, 'KONTEN IG': 0xf06fb0, DEVELOPER: 0x5b9cff, QA: 0x2bb89a, SECURITY: 0x5a7088 };
+  const COL = { MANAGER: 0x2b2f3a, COMMERCE: 0xe8643f, LOGISTIK: 0xf0b72a, CREATIVE: 0xa05fc4, 'KONTEN IG': 0xf06fb0, DEVELOPER: 0x5b9cff, QA: 0x2bb89a, SECURITY: 0x5a7088, KEUANGAN: 0x2bb86a };
   const DSK = AGENTS.map(L => [L.role, COL[L.role], L.x, L.z, L.w, L]);
   const AG = DSK.map(([role, col, x, z, w, L], i) => {
     box(w, .08, 1.1, 0xfbf0c9, x, .78, z); [[-1, -.45], [1, -.45], [-1, .45], [1, .45]].forEach(([a, b]) => box(.08, .74, .08, 0xcdbf8f, x + a * (w / 2 - .1), .37, z + b));
@@ -123,7 +123,7 @@ export function initTopView({ THREE, getState, getHangers, report }) {
   function pull() {
     S = getState && getState(); if (!S) return; S.agents.forEach(q => { const a = AG.find(z => z.role === q.role); if (a) { a.w = !!q.w; a.task = q.task || ''; a.live = !!q.live; } });
     const act = S.agents.filter(q => q.w).length + S.walkers.filter(q => q.w).length, brk = AG.filter(a => a.mode === 'break').length;
-    cards.innerHTML = [['Agen aktif', act + '/10'], ['Istirahat', brk], ['Token', fmt(S.tok)], ['Biaya hari ini', 'Rp 0']].map(([k, v]) => `<div class="tv-card"><small>${k}</small><b>${v}</b></div>`).join('');
+    cards.innerHTML = [['Agen aktif', act + '/11'], ['Istirahat', brk], ['Token', fmt(S.tok)], ['Biaya hari ini', 'Rp 0']].map(([k, v]) => `<div class="tv-card"><small>${k}</small><b>${v}</b></div>`).join('');
     ENT.forEach((e, i) => { const on = e.role === 'KASIR' || e.role === 'STOK-BOT' ? e.w : (e.mode === 'desk' ? e.w : false), br = e.mode === 'break'; pills[i].p.innerHTML = `<i style="background:${on ? '#3ddc84' : br ? '#f0b72a' : '#777'}"></i>${e.role}`; });
   }
 
