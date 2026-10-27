@@ -4,6 +4,7 @@ import { A, api, adminLogout, WORKER_OK } from './aichat.js?v=2';
 
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const ago = iso => { const t = Date.parse(iso); if (!t) return '-'; const m = Math.round((Date.now() - t) / 6e4); return m < 1 ? 'baru saja' : m < 60 ? m + ' mnt lalu' : m < 1440 ? Math.round(m / 60) + ' jam lalu' : Math.round(m / 1440) + ' hari lalu'; };
+const rp = n => 'Rp' + Math.round(+n || 0).toLocaleString('id-ID');
 const load = el => { el.innerHTML = '<div class="ai-muted">Memuat…</div>'; };
 const fail = (el, x) => { el.innerHTML = `<div class="ai-card bad"><b>Belum bisa dimuat</b><br>${esc(x.message || x)}<br><button class="ai-btn" data-retry>Coba lagi</button></div>`; };
 const copy = async (btn, t) => { try { await navigator.clipboard.writeText(t); btn.textContent = 'Tersalin ✓'; } catch { btn.textContent = 'Gagal menyalin'; } };
@@ -13,7 +14,7 @@ const guard = (el, f) => async () => { try { await f(); } catch (x) { fail(el, x
 /* ---------------- Chat: beri tugas ke agen ---------------- */
 const KEY = 'ftr_ai_chat'; let hist = []; try { hist = JSON.parse(localStorage.getItem(KEY) || '[]').slice(-30); } catch { }
 const save = () => { try { localStorage.setItem(KEY, JSON.stringify(hist.slice(-30))); } catch { } };
-const CHIPS = [['Ringkas order', 'Ringkas order: jumlah per status dan yang belum lunas.'], ['Cek stok', 'Cek stok: varian mana yang menipis dan perlu restok?'], ['Cek pengiriman', 'Ringkas kondisi pengiriman dan pelacakan.'], ['Ide konten', 'Buat 1 ide konten Instagram hari ini lalu simpan sebagai draf.'], ['Kondisi sistem', 'Cek situs dan database, lalu ringkas laporan agen terbaru.']];
+const CHIPS = [['Ringkas order', 'Ringkas order: jumlah per status dan yang belum lunas.'], ['Cek stok', 'Cek stok: varian mana yang menipis dan perlu restok?'], ['Cek pengiriman', 'Ringkas kondisi pengiriman dan pelacakan.'], ['Ide konten', 'Buat 1 ide konten Instagram hari ini lalu simpan sebagai draf.'], ['Keuangan', 'Ringkas keuangan bulan ini, bandingkan dengan bulan lalu, dan cek apakah ada order yang belum tersinkron ke keuangan.'], ['Kondisi sistem', 'Cek situs dan database, lalu ringkas laporan agen terbaru.']];
 export function chat(el, ctx) {
   el.innerHTML = `<div class="ai-chips">${CHIPS.map(([n], i) => `<button data-c="${i}">${n}</button>`).join('')}</div><div class="ai-msgs" id="aiM"></div>
   <form class="ai-form" id="aiF"><input id="aiQ" placeholder="Beri tugas atau tanya…" autocomplete="off"><button class="ai-send">Kirim</button></form>`;
@@ -43,6 +44,7 @@ export async function ringkasan(el, ctx) {
   ${o ? `<div class="ai-card"><b>Order per status</b><div class="ai-row">${Object.entries(o.per_status).map(([k, v]) => `<span class="ai-pill">${esc(k)} ${v.jumlah}</span>`).join('') || '-'}</div></div>` : ''}
   ${d.stok?.daftar.length ? `<div class="ai-card"><b>Stok menipis (≤ ${d.stok.batas})</b>${d.stok.daftar.map(p => `<div class="ai-li">${esc(p.produk)}<small>${esc(p.menipis.join(', '))}</small></div>`).join('')}</div>` : ''}
   ${d.perhatian.length ? `<div class="ai-card bad"><b>Perlu perhatian</b>${d.perhatian.map(p => `<div class="ai-li">${esc(p.agen)}: ${esc(p.label)}<small>${ago(p.waktu)}</small></div>`).join('')}</div>` : ''}
+  ${d.keuangan ? `<div class="ai-card ${d.keuangan.perhatian.length ? 'bad' : ''}"><b>Keuangan ${esc(d.keuangan.bulan)}</b><div class="ai-row"><span class="ai-pill">Saldo ${rp(d.keuangan.saldo)}</span><span class="ai-pill">Masuk ${rp(d.keuangan.masuk)}</span><span class="ai-pill">Keluar ${rp(d.keuangan.keluar)}</span><span class="ai-pill">Laba kaos ${rp(d.keuangan.laba_kaos)}</span></div>${d.keuangan.perhatian.map(p => `<div class="ai-li">${esc(p)}</div>`).join('')}</div>` : ''}
   ${d.laporan_terakhir ? `<div class="ai-card"><b>Laporan terakhir</b> <small>${ago(d.laporan_terakhir.waktu)}</small><div class="ai-pre">${esc(d.laporan_terakhir.teks)}</div></div>` : ''}
   ${an ? `<div class="ai-card"><b>Anggaran AI hari ini</b> <small>${an.terpakai}/${an.batas} panggilan (perkiraan)</small><div class="ai-meter"><i style="width:${Math.min(100, an.terpakai / an.batas * 100)}%"></i></div></div>` : ''}
   ${d.gagal ? `<div class="ai-card bad"><b>Sebagian data gagal dibaca</b><br><small>${esc(d.gagal.join(' | '))}</small></div>` : ''}
@@ -136,7 +138,7 @@ export async function setelan(el, ctx) {
   load(el); let d = await api('/settings'), mem = []; try { mem = (await api('/memori')).catatan; } catch { }
   const c = d.settings, T = d.tema, i = A.info || {}, opts = sel => Object.entries(T).map(([k, n]) => `<option value="${k}"${k === sel ? ' selected' : ''}>${esc(n)}</option>`).join('');
   const draw = () => {
-    el.innerHTML = `<div class="ai-card"><b>Koneksi</b><div class="ai-row">${['gemini', 'groq', 'cfai'].map(k => `<span class="ai-pill ${i.penyedia?.[k] ? 'ok' : 'no'}">${k === 'cfai' ? 'Workers AI' : k} ${i.penyedia?.[k] ? '✓' : '✗'}</span>`).join('')}<span class="ai-pill ${i.sa ? 'ok' : 'no'}">Service account ${i.sa ? '✓' : '✗'}</span></div><small>${esc(A.user?.email || '')}${i.sa ? '' : ' · FIREBASE_SA belum diisi: monitoring dan tugas rutin tidak jalan.'}</small></div>
+    el.innerHTML = `<div class="ai-card"><b>Koneksi</b><div class="ai-row">${['gemini', 'groq', 'cfai'].map(k => `<span class="ai-pill ${i.penyedia?.[k] ? 'ok' : 'no'}">${k === 'cfai' ? 'Workers AI' : k} ${i.penyedia?.[k] ? '✓' : '✗'}</span>`).join('')}<span class="ai-pill ${i.sa ? 'ok' : 'no'}">Service account ${i.sa ? '✓' : '✗'}</span><span class="ai-pill ${i.keuangan ? 'ok' : ''}">Keuangan ${i.keuangan ? '✓' : 'belum'}</span></div><small>${esc(A.user?.email || '')}${i.sa ? '' : ' · FIREBASE_SA belum diisi: monitoring dan tugas rutin tidak jalan.'}</small></div>
     <div class="ai-card"><b>Hari ini</b><br>Tema: <b>${esc(d.hariIni.label)}</b> (${d.hariIni.urutan}/${d.hariIni.dari}) · mode <b>${esc(c.mode)}</b><br><small>Satu ide + caption matang per hari. Posting tetap manual (auto-post Instagram belum ada).</small></div>
     <div class="ai-card"><b>Mode konten</b><div class="ai-row"><button class="ai-btn ${c.mode === 'otomatis' ? 'pri' : ''}" data-m="otomatis">Otomatis</button><button class="ai-btn ${c.mode === 'manual' ? 'pri' : ''}" data-m="manual">Manual</button></div></div>
     <div class="ai-card"><b>Upload per minggu</b> <select id="sPm">${[0, 1, 2, 3].map(n => `<option${n === c.perMinggu ? ' selected' : ''}>${n}</option>`).join('')}</select><div class="ai-row">${HARI.map((h, k) => `<button class="ai-btn ${c.hariUpload.includes(k) ? 'pri' : ''}" data-h="${k}">${h}</button>`).join('')}</div></div>

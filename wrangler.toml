@@ -18,6 +18,7 @@ TREND_FEEDS = "https://feeds.bbci.co.uk/sport/football/rss.xml"   # feed RSS pub
 CROSSCHECK_JOBS = "off"                     # tugas terjadwal tanpa cek silang (hemat 1 panggilan per tugas)
 STOK_MIN = "5"                              # ambang stok "menipis" untuk tool cek_stok dan Ringkasan
 JOURNAL_PROJECT_ID = "fvck-journal"                  # Firebase Jurnal (baca artikel & diskusi publik, tanpa login)
+# KEUANGAN_PROJECT_ID = "keuangan-fvck"             # opsional; bawaan diambil dari project_id di secret FIREBASE_SA_KEUANGAN
 AI_DAILY_CAP = "120"                        # anggaran panggilan AI/hari untuk tugas terjadwal; lewat ini jalan tanpa AI (chat tetap jalan)                           # "off" untuk mematikan pemeriksaan silang
 # Rahasia: npx wrangler secret put GEMINI_API_KEY
 
