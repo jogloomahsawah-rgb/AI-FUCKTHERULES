@@ -54,3 +54,8 @@
 3. Deploy ulang `worker.js`. Cek Setelan: "Keuangan ✓". Lalu Chat > chip "Keuangan".
 - Tanpa secret itu, fitur keuangan diam (label "Belum terhubung"), tidak ada error. Jika muncul 403, role belum cukup/belum aktif (butuh beberapa menit).
 - Agen KEUANGAN mengenal kelompok `ongkir` dari tab Ongkir baru: `bulan_ini.ongkir` (masuk, keluar, selisih) dan `keluar_per_grup.ongkir`; ongkir tidak masuk hitungan laba kaos.
+
+## Pencarian order (cari_order)
+- Agen sekarang punya tool `cari_order`: cari order berdasarkan nama pelanggan, kode order (mis. SLMN-58BAEV), id, atau nomor WA. Sebelumnya agen hanya melihat ringkasan dan 20 contoh yang belum lunas, jadi nama atau kode tertentu dibilang "tidak ditemukan" padahal ada.
+- Pencocokan nama dilakukan di kode Worker (500 order terbaru); data pribadi tidak dikirim mentah ke model. Hasilnya status, total, ongkir, DP, produk.
+- Deploy ulang worker.js.

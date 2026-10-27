@@ -42,6 +42,7 @@ const DECL = [
   { name: 'ringkas_order', description: 'Ringkasan order per status + order belum lunas' },
   { name: 'simpan_draft', description: 'Simpan caption/artikel/deskripsi sebagai draft', parameters: { type: 'OBJECT', properties: { jenis: S('caption|artikel|deskripsi'), judul: S('judul'), isi: S('isi') }, required: ['jenis', 'isi'] } },
   { name: 'ajukan_aksi', description: 'Ajukan aksi untuk disetujui admin. tipe jadwal_rutin/hapus_rutin/ubah_setelan DIJALANKAN KODE setelah admin setuju. tipe manual = perubahan data toko (harga, stok, status order) atau posting IG: hanya dicatat, admin yang mengerjakan.', parameters: { type: 'OBJECT', properties: { aksi: S('judul aksi singkat'), tipe: S('manual | jadwal_rutin | hapus_rutin | ubah_setelan'), detail: S('apa yang berubah, sebelum -> sesudah'), alasan: S('alasan'), data: S('JSON string. jadwal_rutin: {\"perintah\":\"...\",\"jam\":7} (jam WIB 0-23). hapus_rutin: {\"id\":\"...\"}. ubah_setelan: sebagian dari {\"momen\":\"\",\"catatanBrand\":\"\",\"produkNext\":{\"nama\":\"\",\"catatan\":\"\"},\"mode\":\"otomatis|manual\"}') }, required: ['aksi', 'detail'] } },
+  { name: 'cari_order', description: 'Cari order tertentu berdasarkan nama pelanggan, kode order (mis. SLMN-58BAEV), id, atau nomor WA. Pakai ini setiap kali admin menanyakan order/pelanggan tertentu. Mengembalikan status, total, produk.', parameters: { type: 'OBJECT', properties: { q: S('nama / kode order / WA, minimal 3 karakter') }, required: ['q'] } },
   { name: 'ringkas_lacak', description: 'Ringkasan data pelacakan/pengiriman' },
   { name: 'cek_stok', description: 'Stok per produk dari koleksi stok varian (warna/size); menandai varian menipis', parameters: { type: 'OBJECT', properties: { batas: S('ambang menipis berupa angka, default 5') } } },
   { name: 'baca_laporan', description: 'Hasil kerja agen terbaru (laporan, peringatan, tugas rutin)', parameters: { type: 'OBJECT', properties: { n: S('jumlah, maks 15') } } },
@@ -52,7 +53,7 @@ const DECL = [
   { name: 'baca_memori', description: 'Baca catatan jangka panjang yang pernah kamu simpan' },
   { name: 'ingat', description: 'Simpan satu catatan jangka panjang (preferensi/keputusan admin, maks 200 huruf). Jangan simpan data pribadi pelanggan.', parameters: { type: 'OBJECT', properties: { teks: S('isi catatan') }, required: ['teks'] } },
 ];
-const READ = ['baca_produk', 'ringkas_order', 'ringkas_lacak', 'cek_stok', 'baca_laporan', 'baca_draf', 'cek_situs', 'baca_jurnal', 'ringkas_keuangan'];   // tool baca-saja (dipakai mode readonly)
+const READ = ['baca_produk', 'ringkas_order', 'cari_order', 'ringkas_lacak', 'cek_stok', 'baca_laporan', 'baca_draf', 'cek_situs', 'baca_jurnal', 'ringkas_keuangan'];   // tool baca-saja (dipakai mode readonly)
 const BRAND = 'FUCK THE RULES adalah brand pakaian streetwear sepakbola dengan tema kebebasan (semangat "Love Football, Live Wild"), gaya tegas hitam-putih. Website: fucktherules.my.id (toko utama), game.fucktherules.my.id (game/store), jurnal-fucktherules.my.id (jurnal/berita). Instagram: @fucktherules.exe (akun utama, kolaborasi dari berbagai bidang), @breaktherules.forever (arsip pakaian dan segala hal yang menyangkut fucktherules), @wrongway3404 (grafis: isu sosial dan olahraga, khususnya sepakbola), @wfactory.web (anak perusahaan, pengembangan website).';
 const SYSTEM = `Kamu FVCKTHERULES AI, agen kerja admin brand streetwear FUCK THE RULES. Bahasa Indonesia, singkat, gaya brand hitam-putih tegas.
 Konteks: ${BRAND}
@@ -104,6 +105,8 @@ const has = (e, k) => k === 'gemini' ? !!e.GEMINI_API_KEY : k === 'groq' ? !!e.G
 async function runCf(e, tok, msgs, decl, facts, log) {   // model cadangan gratis: tanpa function-calling, data dibaca KODE lebih dulu
   const ask = [...msgs].reverse().find(m => m.role === 'user')?.content || '', can = n => decl.some(d => d.name === n), want = [];
   if (can('ringkas_order') && /order|pesanan|bayar|lunas|transaksi|omzet|penjualan/i.test(ask)) want.push('ringkas_order');
+  { const kode = ask.match(/\b[A-Za-z]{2,6}-[A-Za-z0-9]{4,}\b/)?.[0], nama = ask.match(/(?:nama|atas nama|pelanggan|a\/n)\s+([\p{L}.' ]{3,40}?)(?:\s+(?:di|dalam|ada|apa|sudah|udah|belum|gak|nggak|tidak|statusnya|status)\b|[?.!,]|$)/iu)?.[1];
+    if (can('cari_order') && (kode || nama)) { try { facts.push({ tool: 'cari_order', hasil: await TOOLS.cari_order(e, tok, { q: kode || nama }) }); log.push('cfai:cari_order'); } catch (x) { log.push('cfai cari_order gagal: ' + x.message); } } }
   if (can('baca_produk') && /produk|harga|katalog|barang|caption|konten/i.test(ask)) want.push('baca_produk');
   if (can('cek_stok') && /stok|restok|habis|menipis/i.test(ask)) want.push('cek_stok');
   if (can('ringkas_lacak') && /kirim|resi|paket|lacak|pengiriman/i.test(ask)) want.push('ringkas_lacak');
@@ -188,6 +191,13 @@ async function latest(e, tok, col, n) {
   if (!r.ok) throw new Error('query ' + col + ' ' + r.status);
   return (await r.json()).filter(x => x.document).map(x => ({ id: x.document.name.split('/').pop(), ...fromDoc(x.document) }));
 }
+TOOLS.cari_order = async (e, t, a) => {   // cari order by nama / kode / id / WA / email, dicocokkan di KODE (data pribadi tidak dikirim mentah ke model)
+  const q = String(a?.q || '').trim().toLowerCase(), qd = q.replace(/\D/g, '').replace(/^(62|0)/, '');
+  if (q.length < 3) return { error: 'kata kunci minimal 3 huruf' };
+  const os = await latest(e, t, 'orders', 500), nm = s => String(s || '').toLowerCase();
+  const cocok = os.filter(o => nm(o.nama).includes(q) || nm(o.kodePelunasan).includes(q) || nm(o.id).includes(q) || nm(o.email).includes(q) || (qd.length >= 6 && String(o.wa || '').replace(/\D/g, '').replace(/^(62|0)/, '').includes(qd)));
+  return { diperiksa: os.length, ditemukan: cocok.length, catatan: os.length >= 500 ? 'hanya 500 order terbaru yang diperiksa' : '', hasil: cocok.slice(0, 5).map(o => ({ kode: o.kodePelunasan || o.id, id: o.id, status: o.status, tanggal: String(o.createdAt || '').slice(0, 10), total: o.totalAkhir, ongkir: o.ongkir, dp: o.dpNominal, nama_cocok: nm(o.nama).includes(q), produk: Array.isArray(o.produk) ? o.produk.map(p => p.nama).filter(Boolean).join(', ') : (o.produk || o.produkText || '') })) };
+};
 TOOLS.ringkas_lacak = async (e, t) => { const l = await list(e, t, 'lacak', 100); return { total: l.length, contoh: l.slice(0, 8).map(o => Object.fromEntries(Object.entries(o).filter(([k, v]) => typeof v !== 'object' && !['nama', 'wa', 'alamat', 'telp', 'email'].includes(k)).slice(0, 6))) }; };
 
 // ===== inti: pembuat -> pemeriksa -> revisi =====
