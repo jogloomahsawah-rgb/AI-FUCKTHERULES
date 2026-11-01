@@ -82,24 +82,28 @@ async function gemini(e, msgs, decl) {
   const parts = (await r.json()).candidates?.[0]?.content?.parts || [];
   return { text: parts.map(p => p.text || '').join('').trim(), calls: parts.filter(p => p.functionCall).map((p, i) => ({ id: 'g' + i, name: p.functionCall.name, args: p.functionCall.args || {} })), raw: parts };
 }
-async function groq(e, msgs, decl) {
+// Penyedia berformat OpenAI (groq, bansos). Satu fungsi, nama & kunci berbeda.
+async function oai(nama, url, key, model, msgs, decl, ms) {
   const messages = msgs.map(m => m.role === 'tool' ? { role: 'tool', tool_call_id: m.tool_call_id, content: JSON.stringify(m.content) }
     : m.tool_calls ? { role: 'assistant', content: m.content || null, tool_calls: m.tool_calls.map(c => ({ id: c.id, type: 'function', function: { name: c.name, arguments: JSON.stringify(c.args) } })) } : { role: m.role, content: String(m.content) });
-  const r = await fetch('https://api.groq.com/openai/v1/chat/completions', { method: 'POST', headers: { Authorization: 'Bearer ' + String(e.GROQ_API_KEY).trim(), 'Content-Type': 'application/json' },
-    body: JSON.stringify({ model: e.GROQ_MODEL, messages, ...(decl?.length ? { tools: decl.map(oa) } : {}) }) });
-  if (!r.ok) throw new Error('groq ' + r.status + ' ' + (await r.text()).slice(0, 140));
+  const r = await fetch(url, { method: 'POST', headers: { Authorization: 'Bearer ' + String(key).trim(), 'Content-Type': 'application/json' }, ...(ms ? { signal: AbortSignal.timeout(ms) } : {}),
+    body: JSON.stringify({ model, messages, ...(decl?.length ? { tools: decl.map(oa) } : {}) }) });
+  if (!r.ok) throw new Error(nama + ' ' + r.status + ' ' + (await r.text()).slice(0, 140));
   const m = (await r.json()).choices?.[0]?.message || {};
-  return { text: (m.content || '').trim(), calls: (m.tool_calls || []).map(c => { let a = {}; try { a = JSON.parse(c.function.arguments || '{}'); } catch { } return { id: c.id, name: c.function.name, args: a }; }) };
+  return { text: (typeof m.content === 'string' ? m.content : '').trim(), calls: (m.tool_calls || []).map(c => { let a = {}; try { a = JSON.parse(c.function.arguments || '{}'); } catch { } return { id: c.id, name: c.function.name, args: a }; }) };
 }
+const groq = (e, msgs, decl) => oai('groq', 'https://api.groq.com/openai/v1/chat/completions', e.GROQ_API_KEY, e.GROQ_MODEL, msgs, decl);
+// BansosAI (gateway pihak ketiga, TIDAK resmi): hanya dipakai untuk tugas "aman" (konten/pemasaran tanpa data pelanggan), batas waktu 30 dtk karena gateway kurang stabil.
+const bansos = (e, msgs, decl) => oai('bansos', String(e.BANSOS_BASE || 'https://api.bansosai.app/v1').replace(/\/+$/, '') + '/chat/completions', e.BANSOS_API_KEY, e.BANSOS_MODEL, msgs, decl, 30000);
 async function cfai(e, msgs) {
   const r = await e.AI.run(e.CF_MODEL, { messages: msgs.map(({ role, content }) => ({ role, content: String(content) })) });
   const t = typeof r === 'string' ? r : typeof r?.response === 'string' ? r.response : r?.choices?.[0]?.message?.content ?? r?.result?.response ?? '';   // model lama: {response}; model baru: format OpenAI
   return { text: String(t || '').trim(), calls: [] };
 }
-const P = { gemini, groq, cfai };
+const P = { gemini, groq, bansos, cfai };
 let USED = 0;   // jumlah panggilan model sejak isolate hidup (dipakai menghitung anggaran harian)
 for (const k of Object.keys(P)) { const f = P[k]; P[k] = (...a) => { USED++; return f(...a); }; }
-const has = (e, k) => k === 'gemini' ? !!e.GEMINI_API_KEY : k === 'groq' ? !!e.GROQ_API_KEY : !!e.AI;
+const has = (e, k) => k === 'gemini' ? !!e.GEMINI_API_KEY : k === 'groq' ? !!e.GROQ_API_KEY : k === 'bansos' ? !!e.BANSOS_API_KEY && e.BANSOS_SCOPE !== 'off' : !!e.AI;
 
 // Jalankan satu model dengan tool. Tool selalu dieksekusi KODE kita, apa pun modelnya.
 async function runCf(e, tok, msgs, decl, facts, log) {   // model cadangan gratis: tanpa function-calling, data dibaca KODE lebih dulu
@@ -155,6 +159,7 @@ const JADWAL = {
   KEUANGAN: { jam: [[19, 20]], tiap: 1380, ai: true, ket: 'Ringkasan keuangan harian + cek selisih order (AI hanya jika data berubah)' },
   CREATIVE: { jam: [[10, 11]], tiap: 1380, maks: 1, ai: true, ket: 'Caption matang harian + paket upload mingguan' },
   'KONTEN IG': { jam: [[9, 10]], tiap: 1380, maks: 1, ai: true, ket: 'Satu ide konten per hari (rotasi tema)' },
+  PEMASARAN: { jam: [[7, 8]], tiap: 1380, maks: 1, ai: true, ket: 'Strategi branding & pemasaran: rencana 7 hari (Senin) + evaluasi (Kamis)' },
   QA: { jam: [[0, 24]], tiap: 180, ai: false, ket: 'Cek situs & database tiap 3 jam (tanpa AI)' },
   SECURITY: { jam: [[22, 23]], tiap: 1380, ai: false, ket: 'Audit aturan akses, 1x sehari 22:00 (tanpa AI)' },
   DEVELOPER: { jam: [[23, 24]], tiap: 1380, ai: false, ket: 'Cek konfigurasi & anggaran AI, 1x sehari 23:00 (tanpa AI)' },
@@ -204,6 +209,7 @@ TOOLS.ringkas_lacak = async (e, t) => { const l = await list(e, t, 'lacak', 100)
 // Tiap penyedia punya beberapa model (kuota gratis tiap model terpisah). Terakhir selalu Workers AI (tanpa API key).
 // Groq: daftar sesuai console (26 Okt 2026), llama-3.x tidak tampil lagi. Gemini/CF: lihat catatan di PEMBARUAN-AGEN.md
 const MODELS = (e, k) => k === 'gemini' ? [e.GEMINI_MODEL || 'gemini-flash-latest', 'gemini-flash-latest', 'gemini-flash-lite-latest']   // alias -latest mengikuti Flash terbaru; 2.5 sudah ditutup untuk akun baru
+  : k === 'bansos' ? [e.BANSOS_MODEL || 'claude-sonnet-4-5', 'claude-sonnet-4-5', 'glm-5', 'deepseek-3.2', 'qwen-3-8-max']   // ID dari katalog Model Studio bansosai.app; cek ejaan persis di sana (discover() mencari otomatis bila semua 404)
   : k === 'groq' ? [e.GROQ_MODEL || 'openai/gpt-oss-120b', 'openai/gpt-oss-120b', 'openai/gpt-oss-20b', 'qwen/qwen3.8-27b'] : [e.CF_MODEL || '@cf/google/gemma-4-26b-a4b-it', '@cf/google/gemma-4-26b-a4b-it', '@cf/zai-org/glm-4.7-flash'];   // llama-3.1-8b-instruct di Workers AI dipensiunkan 2026-05-30
 const DEAD = new Set(), FOUND = {};   // model yang sudah terbukti mati (404/deprecated) dilewati selama Worker hidup; FOUND = hasil penemuan otomatis
 const mati = m => /\b404\b|deprecated|no longer available|model_not_found|decommission/i.test(m);
@@ -212,22 +218,24 @@ async function discover(e, k) {   // semua model bawaan mati: tanya penyedia mod
   try {
     if (k === 'gemini') { const r = await fetch('https://generativelanguage.googleapis.com/v1beta/models?pageSize=100', { headers: { 'x-goog-api-key': String(e.GEMINI_API_KEY).trim() } }); if (r.ok) out = ((await r.json()).models || []).filter(m => (m.supportedGenerationMethods || []).includes('generateContent') && /flash/.test(m.name) && !/image|tts|live|audio|embed|robotics|computer/.test(m.name)).map(m => m.name.replace('models/', '')).sort((x, y) => (/lite/.test(x) ? 1 : 0) - (/lite/.test(y) ? 1 : 0)).slice(0, 2); }
     else if (k === 'groq') { const r = await fetch('https://api.groq.com/openai/v1/models', { headers: { Authorization: 'Bearer ' + String(e.GROQ_API_KEY).trim() } }); if (r.ok) out = ((await r.json()).data || []).map(m => m.id).filter(id => /llama|qwen|gpt-oss/.test(id) && !/guard|whisper|tts|prompt/.test(id)).slice(0, 2); }
+    else if (k === 'bansos') { const r = await fetch(String(e.BANSOS_BASE || 'https://api.bansosai.app/v1').replace(/\/+$/, '') + '/models', { headers: { Authorization: 'Bearer ' + String(e.BANSOS_API_KEY).trim() }, signal: AbortSignal.timeout(15000) }); if (r.ok) out = ((await r.json()).data || []).map(m => m.id).filter(id => /claude-sonnet|glm|deepseek|qwen/.test(id) && !/thinking|embed|image/.test(id)).slice(0, 2); }
   } catch { }
   if (out.length) FOUND[k] = out; return out;   // hasil kosong tidak disimpan, supaya dicoba lagi di permintaan berikutnya
 }
 async function withModels(e, k, fn, log) {   // coba tiap model penyedia k; model mati dicatat, lalu cari model aktif otomatis
   let err; const base = [...new Set(MODELS(e, k))].filter(m => !DEAD.has(k + '/' + m));
   const run = async list => { for (const m of list) {
-    const e2 = Object.assign(Object.create(e), k === 'gemini' ? { GEMINI_MODEL: m } : k === 'groq' ? { GROQ_MODEL: m } : { CF_MODEL: m });
+    const e2 = Object.assign(Object.create(e), k === 'gemini' ? { GEMINI_MODEL: m } : k === 'groq' ? { GROQ_MODEL: m } : k === 'bansos' ? { BANSOS_MODEL: m } : { CF_MODEL: m });
     try { return { v: await fn(e2) }; } catch (x) { err = x; log && log.push(k + '/' + m + ' gagal: ' + x.message); if (mati(x.message)) DEAD.add(k + '/' + m); } } };
   let r = await run(base); if (r) return r.v;
   if (k !== 'cfai' && (!base.length || (err && mati(err.message)))) { const f = (await discover(e, k)).filter(m => !base.includes(m) && !DEAD.has(k + '/' + m)); if (f.length) { log && log.push(k + ': mencoba model hasil penemuan otomatis ' + f.join(', ')); r = await run(f); if (r) return r.v; } }
   throw err || new Error(k + ' tidak punya model');
 }
-async function makeWithFallback(e, fn, log) {
+async function makeWithFallback(e, fn, log, aman = false) {   // aman=true: tugas tanpa data pelanggan (konten/pemasaran) -> boleh pakai bansos
   const order = (e.MAKER_ORDER || 'gemini,groq').split(',').map(s => s.trim()).filter(Boolean); if (!order.includes('cfai')) order.push('cfai');
   for (const k of order) {
-    if (!['gemini', 'groq', 'cfai'].includes(k)) continue;
+    if (!['gemini', 'groq', 'bansos', 'cfai'].includes(k)) continue;
+    if (k === 'bansos' && !aman) continue;   // chat admin & tugas berisi data order/keuangan TIDAK PERNAH lewat gateway pihak ketiga
     if (!has(e, k)) { log.push(k + ': ' + (k === 'cfai' ? 'binding AI belum dipasang' : 'API key belum diisi (Secret)')); continue; }
     try { return { maker: k, out: await withModels(e, k, e2 => fn(k, e2), log) }; } catch { }   // alasan tiap kegagalan sudah masuk log
   }
@@ -264,9 +272,9 @@ async function chatAsk2(e, tok, messages, decl, check) {
 }
 // Tugas terjadwal: data diambil KODE, model hanya menulis, model lain memeriksa.
 const teksHemat = facts => facts.map(f => f.tool === 'ringkas_order' ? `Order ${f.hasil.total_order}; ` + Object.entries(f.hasil.per_status).map(([k, v]) => `${k}: ${v.jumlah}`).join(', ') + `; belum lunas: ${f.hasil.belum_lunas_contoh.length}` : f.tool === 'ringkas_keuangan' ? teksKeu(f.hasil) : JSON.stringify(f.hasil).slice(0, 300)).join('\n');
-async function writeJob(e, instruksi, facts, log) {
+async function writeJob(e, instruksi, facts, log, aman = false) {
   if (e.HEMAT) return { reply: '[mode hemat AI] ' + teksHemat(facts), cek: { maker: 'kode', checker: null, verdict: 'TANPA_AI', masalah: [] } };   // anggaran harian habis: angka dari kode, tanpa model
-  const m = await makeWithFallback(e, (k, e2) => P[k](e2, [{ role: 'system', content: SYSTEM }, { role: 'user', content: `${instruksi}\n\nDATA:\n${JSON.stringify(facts).slice(0, 5000)}` }], null).then(r => { if (!r.text) throw new Error('jawaban kosong'); return r.text; }), log);
+  const m = await makeWithFallback(e, (k, e2) => P[k](e2, [{ role: 'system', content: SYSTEM }, { role: 'user', content: `${instruksi}\n\nDATA:\n${JSON.stringify(facts).slice(0, 5000)}` }], null).then(r => { if (!r.text) throw new Error('jawaban kosong'); return r.text; }), log, aman);
   if (!m) throw new Error('semua model gagal / kuota habis');
   return verify(e, m.maker, instruksi, facts, m.out, log, e.CROSSCHECK_JOBS === 'on');
 }
@@ -288,12 +296,12 @@ const TEMA = {
   produk: ['Promosi produk', 'Usulkan 1 ide konten promosi untuk salah satu produk yang ada di DATA: format, hook, alur 3 langkah, ajakan beli.' + NOFAKTA],
   behind: ['Di balik layar', 'Usulkan 1 ide konten di balik layar brand (proses desain, packing, tim): sebut akun IG yang cocok, format, hook, alur 3 langkah. Jangan mengulang ide di RIWAYAT.' + NOFAKTA],
 };
-const DEF_SET = { mode: 'otomatis', rotasi: ['fucktherules_exe', 'kolab_arsip', 'kolab_web', 'kolab_isu'], perMinggu: 1, hariUpload: [5], catatanBrand: '', momen: '', produkNext: { nama: '', catatan: '' } };
+const DEF_SET = { mode: 'otomatis', rotasi: ['fucktherules_exe', 'kolab_arsip', 'kolab_web', 'kolab_isu'], perMinggu: 1, hariUpload: [5], catatanBrand: '', momen: '', metrik: '', sasaran: '', produkNext: { nama: '', catatan: '' } };
 const cleanSet = x => { x = x && typeof x === 'object' ? x : {};
   const rotasi = (Array.isArray(x.rotasi) ? x.rotasi : DEF_SET.rotasi).filter(t => TEMA[t]).slice(0, 7), pm = Math.min(3, Math.max(0, x.perMinggu === undefined ? DEF_SET.perMinggu : parseInt(x.perMinggu) || 0));
   let hu = [...new Set((Array.isArray(x.hariUpload) ? x.hariUpload : DEF_SET.hariUpload).map(Number).filter(n => n >= 0 && n <= 6))]; hu = pm ? (hu.length ? hu : [5]).slice(0, pm) : [];
   const pn = x.produkNext && typeof x.produkNext === 'object' ? x.produkNext : {};
-  return { mode: x.mode === 'manual' ? 'manual' : 'otomatis', rotasi: rotasi.length ? rotasi : DEF_SET.rotasi, perMinggu: pm, hariUpload: hu, catatanBrand: String(x.catatanBrand || '').slice(0, 1500), momen: String(x.momen || '').slice(0, 600), produkNext: { nama: String(pn.nama || '').slice(0, 80), catatan: String(pn.catatan || '').slice(0, 600) } }; };
+  return { mode: x.mode === 'manual' ? 'manual' : 'otomatis', rotasi: rotasi.length ? rotasi : DEF_SET.rotasi, perMinggu: pm, hariUpload: hu, catatanBrand: String(x.catatanBrand || '').slice(0, 1500), momen: String(x.momen || '').slice(0, 600), metrik: String(x.metrik || '').slice(0, 600), sasaran: String(x.sasaran || '').slice(0, 300), produkNext: { nama: String(pn.nama || '').slice(0, 80), catatan: String(pn.catatan || '').slice(0, 600) } }; };
 const OLD_ROT = ['fucktherules_exe,fucktherules_exe,wrongway,breaktherules_exe,wfactory,produk_selanjutnya', 'instagram,instagram,branding,produk_selanjutnya'];
 const parseSet = d => { try { const x = JSON.parse(d?.json || '{}'); if (Array.isArray(x.rotasi) && OLD_ROT.includes(x.rotasi.join(','))) delete x.rotasi; return cleanSet(x); } catch { return cleanSet({}); } };   // rotasi default lama diganti default baru
 const hariIni = () => wibNow().toISOString().slice(0, 10), dayIdx = () => Math.floor(wibNow().getTime() / 864e5);
@@ -327,34 +335,39 @@ async function trenBola(e) {   // hanya JUDUL feed publik sebagai sinyal tren; t
 }
 async function faktaKonten(e, sa, set, tema) {
   let prod = [], riw = [], art = [], tren = []; try { prod = (await TOOLS.baca_produk(e, sa)).filter(x => x.nama).slice(0, 12).map(x => x.nama); } catch { }
-  try { riw = (await latest(e, sa, 'aiDrafts', 14)).filter(x => x.jenis === 'konten').slice(0, 6).map(x => x.judul + ': ' + String(x.ide || '').slice(0, 90)); } catch { }
+  let arah = ''; try { const dr = await latest(e, sa, 'aiDrafts', 14); riw = dr.filter(x => x.jenis === 'konten').slice(0, 6).map(x => x.judul + ': ' + String(x.ide || '').slice(0, 90)); const sg = dr.find(x => x.jenis === 'strategi'); if (sg) arah = String(sg.isi || '').slice(0, 900); } catch { }
   try { art = await artikelTerbaru(e, sa); } catch { } try { tren = await trenBola(e); } catch { }
   const w = wibNow();
   return [{ tool: 'tanggal', hasil: hariIni() + ' (' + ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'][w.getUTCDay()] + ')' }, { tool: 'brand', hasil: BRAND + (set.catatanBrand ? ' Catatan admin: ' + set.catatanBrand : '') },
-    { tool: 'baca_produk', hasil: prod }, { tool: 'RIWAYAT', hasil: riw },
+    { tool: 'baca_produk', hasil: prod }, { tool: 'RIWAYAT', hasil: riw }, ...(arah ? [{ tool: 'arahan_pemasaran', hasil: arah, catatan: 'strategi terbaru dari agen PEMASARAN; selaraskan konten dengan fokus/pilar di sini, jangan disalin mentah' }] : []),
     { tool: 'artikel_jurnal_terbaru', hasil: art, catatan: 'selaraskan dengan artikel ini bila relevan' }, ...(set.momen ? [{ tool: 'momen_dari_admin', hasil: set.momen }] : []),
     ...(tren.length ? [{ tool: 'judul_berita_bola_terkini', hasil: tren, catatan: 'hanya sinyal tren, BUKAN fakta terverifikasi; tandai [verifikasi] bila dipakai' }] : []),
     ...(tema === 'branding' ? [{ tool: 'BIDANG_HARI_INI', hasil: BIDANG[dayIdx() % BIDANG.length] }] : []),
     ...(tema === 'produk_selanjutnya' ? [{ tool: 'catatan_produk_selanjutnya', hasil: set.produkNext }] : [])];
 }
 async function stepIde(e, sa, { set, tema, hari, id, log }) {
-  const r = await writeJob(e, TEMA[tema][1] + ' Jawab ringkas, maks 8 baris.', await faktaKonten(e, sa, set, tema), log);
+  const r = await writeJob(e, TEMA[tema][1] + ' Jawab ringkas, maks 8 baris.', await faktaKonten(e, sa, set, tema), log, true);
   const d = { jenis: 'konten', tema, judul: TEMA[tema][0] + ' · ' + hari, ide: r.reply, caption: '', status: 'ide', hari, isi: r.reply, createdAt: new Date().toISOString() };
   await setDoc(e, sa, 'aiDrafts', id, d); return d;
 }
 async function stepCaption(e, sa, { set, d, id, log }) {
   const f = await faktaKonten(e, sa, set, d.tema); f.push({ tool: 'IDE', hasil: d.ide });
-  const r = await writeJob(e, 'Dari IDE di DATA tulis paket MATANG: 1) hook (1 baris) 2) caption (maks 5 baris) 3) 5 hashtag 4) brief visual 3 poin 5) ajakan (CTA) 6) saran jam posting. Jangan menyebut harga/stok yang tidak ada di DATA.', f, log);
+  const r = await writeJob(e, 'Dari IDE di DATA tulis paket MATANG: 1) hook (1 baris) 2) caption (maks 5 baris) 3) 5 hashtag 4) brief visual 3 poin 5) ajakan (CTA) 6) saran jam posting. Jangan menyebut harga/stok yang tidak ada di DATA.', f, log, true);
   const n = { ...d, caption: r.reply, status: 'matang', isi: d.ide + '\n\n— CAPTION —\n' + r.reply }; await setDoc(e, sa, 'aiDrafts', id, n); return n;
 }
 async function paketMingguan(e, sa, { set, hari, log }) {
   const cut = new Date(wibNow().getTime() - 6 * 864e5).toISOString().slice(0, 10);
   const ds = (await latest(e, sa, 'aiDrafts', 14)).filter(x => x.jenis === 'konten' && x.caption && x.hari >= cut).slice(0, 7);
   if (!ds.length) return null;
-  const r = await writeJob(e, 'Dari daftar konten minggu ini di DATA, pilih 1 yang paling kuat, sebutkan mana yang dipilih, lalu finalkan jadi paket siap upload: judul, hook, caption final, 5 hashtag, brief visual, saran jam posting, checklist sebelum upload.', [{ tool: 'brand', hasil: BRAND + (set.catatanBrand ? ' ' + set.catatanBrand : '') }, { tool: 'konten_minggu_ini', hasil: ds.map(x => ({ judul: x.judul, ide: String(x.ide).slice(0, 200), caption: String(x.caption).slice(0, 300) })) }], log);
+  const r = await writeJob(e, 'Dari daftar konten minggu ini di DATA, pilih 1 yang paling kuat, sebutkan mana yang dipilih, lalu finalkan jadi paket siap upload: judul, hook, caption final, 5 hashtag, brief visual, saran jam posting, checklist sebelum upload.', [{ tool: 'brand', hasil: BRAND + (set.catatanBrand ? ' ' + set.catatanBrand : '') }, { tool: 'konten_minggu_ini', hasil: ds.map(x => ({ judul: x.judul, ide: String(x.ide).slice(0, 200), caption: String(x.caption).slice(0, 300) })) }], log, true);
   const d = { jenis: 'siap_upload', judul: 'Paket upload · ' + hari, status: 'siap_upload', hari, isi: r.reply + '\n\n(Posting dilakukan manual oleh admin. Auto-post ke Instagram belum tersedia.)', createdAt: new Date().toISOString() };
   await setDoc(e, sa, 'aiDrafts', 'upload-' + hari, d); return d;
 }
+
+// ===================== PEMASARAN: branding & pemasaran yang disesuaikan dengan FUCK THE RULES =====================
+const KONTEKS_PASAR = ' Konteks: pemilik wirausaha muda dengan tim kecil dan dana sangat terbatas, jadi andalkan cara ORGANIK (cerita, komunitas, kolaborasi, barter), bukan iklan berbayar besar. Posisi brand: bukan "kaos bola biasa" tapi simbol kebebasan dalam budaya tribun/streetwear ("Love Football, Live Wild"), gaya tegas hitam-putih. Corong ekosistem: @wrongway3404 (isu & sepakbola, penjaring perhatian) -> @fucktherules.exe (akun utama, identitas & kolaborasi) -> @breaktherules.forever (arsip, kedalaman cerita) -> toko fucktherules.my.id / game.fucktherules.my.id / jurnal (tujuan klik & beli). Aturan keras: jangan mengarang angka, harga, stok, klien, jadwal pertandingan, atau kutipan; yang tidak ada di DATA tulis [perlu diisi admin]; klaim yang perlu dicek tulis [verifikasi]. Jangan menyarankan memakai logo klub/liga/pemain, foto berhak cipta, atau lagu berlisensi (risiko takedown & hukum); gunakan desain/ilustrasi/footage milik sendiri. Konten isu sosial harus berimbang. Gunakan arahan_pemasaran di DATA sebagai rencana sebelumnya bila ada.';
+const PASAR_MINGGU = 'Kamu kepala branding & pemasaran. Susun RENCANA PEMASARAN 7 HARI ke depan untuk admin, maksimal 24 baris, bahasa Indonesia santai-tegas:\n1) FOKUS minggu ini: satu tujuan terukur (traffic ke toko / penjualan satu produk / follower / komunitas) dan alasannya dari DATA (sasaran_dari_admin, metrik_dari_admin, riwayat).\n2) AUDIENS: 2 segmen (mis. pecinta bola yang berpakaian streetwear; anak muda yang suka budaya kebebasan/arsip) lengkap dengan 1 rasa/kebutuhan tiap segmen.\n3) PERAN AKUN: satu kalimat untuk tiap akun minggu ini; kolaborasi ditulis sebagai Collab post.\n4) JADWAL 7 HARI: hari - akun - format (reel/carousel/story) - topik - tujuan (awareness / pertimbangan / beli). Kaitkan ke momen di DATA (momen_dari_admin, judul_berita_bola_terkini, artikel jurnal); jangan mengarang jadwal pertandingan.\n5) SATU KAMPANYE/DROP: nama, cerita, mekanisme teaser -> reveal -> bukti sosial; pakai produk di DATA saja; kelangkaan hanya jika admin memang membatasi stok ([perlu diisi admin]).\n6) KOMUNITAS & ORGANIK tanpa biaya: 2 aksi konkret (mis. foto pembeli/UGC dengan hashtag, tantangan outfit hari pertandingan, kolaborasi dengan komunitas suporter atau kreator mikro secara barter, repost).\n7) KEPERCAYAAN: 2 hal yang dipamerkan minggu ini (foto asli produk, size chart, packing, resi/pengiriman, testimoni).\n8) EKSPERIMEN: 3 uji kecil (hook/format/CTA) dan metrik yang dicatat admin (save, share, klik link bio, DM, order).\n9) RISIKO: 1-2 hal yang perlu dihindari minggu ini.' + KONTEKS_PASAR;
+const PASAR_EVAL = 'Kamu kepala branding & pemasaran. Buat EVALUASI SINGKAT pertengahan minggu, maksimal 14 baris: 1) Baca metrik_dari_admin; bila kosong tulis [perlu diisi admin: metrik minggu ini] dan sebut 4 angka yang sebaiknya dicatat (jangkauan, save/share, klik link bio, order dari IG/DM). 2) Dari rencana sebelumnya (arahan_pemasaran) dan RIWAYAT konten: apa yang DIPERTAHANKAN, DIHENTIKAN, DICOBA (maks 2 butir tiap kategori) - hanya berdasar DATA, jangan menebak performa. 3) Penyesuaian jadwal 3 hari ke depan (hari - akun - format - topik). 4) Satu ide kecil untuk mengangkat produk/arsip yang paling jarang tampil di RIWAYAT.' + KONTEKS_PASAR;
 
 const JOBS = {
   async COMMERCE(e, sa, { prev, log }) {
@@ -386,6 +399,21 @@ const JOBS = {
     if (set.perMinggu > 0 && set.hariUpload.includes(wibNow().getUTCDay()) && !(await getDraft(e, sa, 'upload-' + hari))) { await paketMingguan(e, sa, { set, hari, log }); ex = ' + paket upload'; }
     return { label: 'Caption matang' + ex, detail: 'Draft konten-' + hari + ' siap di tab Setelan > Draft.' };
   },
+  async PEMASARAN(e, sa, { set, log, manual }) {
+    if (set.mode === 'manual') return { label: 'Mode manual: otomatis mati', skip: true };
+    if (e.HEMAT) return { label: 'Ditunda: anggaran AI hari ini habis', skip: true, retry: true };
+    const dow = wibNow().getUTCDay(), jenis = dow === 1 ? 'mingguan' : dow === 4 ? 'evaluasi' : manual ? 'mingguan' : '';   // Senin = rencana, Kamis = evaluasi; tombol "Jalankan sekarang" selalu membuat rencana
+    if (!jenis) return { label: 'Bukan hari strategi (Senin & Kamis)', skip: true };
+    const hari = hariIni(), id = 'strategi-' + hari + '-' + jenis;
+    if (!manual && await getDraft(e, sa, id)) return { label: 'Strategi hari ini sudah ada', skip: true };   // id tetap: tidak mungkin dobel
+    const f = await faktaKonten(e, sa, set, 'pemasaran');
+    f.push({ tool: 'metrik_dari_admin', hasil: set.metrik || '[perlu diisi admin]' }, { tool: 'sasaran_dari_admin', hasil: set.sasaran || '[perlu diisi admin]' });
+    if (set.produkNext?.nama) f.push({ tool: 'produk_selanjutnya', hasil: set.produkNext });
+    const r = await writeJob(e, jenis === 'mingguan' ? PASAR_MINGGU : PASAR_EVAL, f, log, true);   // aman=true: tanpa data pelanggan, boleh lewat bansos
+    const d = { jenis: 'strategi', tema: 'pemasaran', judul: (jenis === 'mingguan' ? 'Rencana pemasaran 7 hari' : 'Evaluasi pemasaran') + ' · ' + hari, status: jenis, hari, isi: r.reply + '\n\n(Saran AI tanpa akses data Instagram; metrik dari isian admin. Verifikasi dulu sebelum dipakai.)', createdAt: new Date().toISOString() };
+    await setDoc(e, sa, 'aiDrafts', id, d);
+    return { label: jenis === 'mingguan' ? 'Rencana pemasaran 7 hari' : 'Evaluasi pemasaran', detail: r.reply, cek: r.cek };
+  },
   async QA(e, sa) {
     const rows = []; for (const u of (e.SITES || '').split(',').filter(Boolean)) { const t = Date.now(); try { const r = await fetch(u); rows.push({ u, ok: r.ok, kode: r.status, ms: Date.now() - t }); } catch { rows.push({ u, ok: false, kode: 0, ms: 0 }); } }
     let db = true; try { await list(e, sa, 'produk', 1); } catch { db = false; }
@@ -393,7 +421,7 @@ const JOBS = {
     return { label: bad ? 'Ada situs bermasalah' : 'Semua situs normal', flag: bad, detail: rows.map(r => `${r.ok ? 'OK' : 'GAGAL'} ${r.u} (${r.kode}, ${r.ms}ms)`).join('\n') + `\nFirestore produk: ${db ? 'OK' : 'GAGAL'}` };
   },
   async DEVELOPER(e, sa, { used, cap }) {
-    const prov = ['gemini', 'groq', 'cfai'].map(k => k + ': ' + (has(e, k) ? 'siap' : 'TIDAK ADA key/binding')).join(', '), t = Date.now(); let db = true; try { await list(e, sa, 'produk', 1); } catch { db = false; }
+    const prov = ['gemini', 'groq', 'bansos', 'cfai'].map(k => k + ': ' + (has(e, k) ? 'siap' : k === 'bansos' ? 'tidak diisi (opsional)' : 'TIDAK ADA key/binding')).join(', '), t = Date.now(); let db = true; try { await list(e, sa, 'produk', 1); } catch { db = false; }
     const bad = !db || !['gemini', 'groq', 'cfai'].some(k => has(e, k));
     return { label: bad ? 'Konfigurasi bermasalah' : 'Konfigurasi sehat', flag: bad, detail: `Penyedia AI → ${prov}\nFirestore: ${db ? 'OK' : 'GAGAL'} (${Date.now() - t}ms)\nPakai AI hari ini (terjadwal): ${used}/${cap}` };
   },
@@ -417,7 +445,7 @@ async function runOne(e, sa, r, { st, set, hari, used, cap, manual }) {   // sat
   await setDoc(e, sa, 'aiAgents', id, { ...base, running: true, startAt: new Date().toISOString(), label: prev.label || '', lastAt: prev.lastAt || '', ok: prev.ok !== false, flag: prev.flag === true });
   let res, ok = true;
   try {
-    res = await JOBS[r](e2, sa, { prev: manual ? { ...prev, hash: '' } : prev, log, used, cap, set: manual ? { ...set, mode: 'otomatis' } : set });
+    res = await JOBS[r](e2, sa, { prev: manual ? { ...prev, hash: '' } : prev, log, used, cap, manual, set: manual ? { ...set, mode: 'otomatis' } : set });
     if (!res.skip) await add(e, sa, 'aiTasks', { agent: r, label: res.label, hasil: res.detail || '', flag: !!res.flag, cek: JSON.stringify(res.cek || '') });
   } catch (x) {
     ok = false; res = { label: 'Gagal: ' + String(x.message).slice(0, 50), flag: true, retry: !!JADWAL[r].maks };
@@ -499,7 +527,7 @@ const EXEC = {
   async jadwal_rutin(e, sa, d) { const x = await tambahRutin(e, sa, d); return `Tugas rutin dibuat: tiap hari ${String(x.jam).padStart(2, '0')}:00 WIB.`; },
   async hapus_rutin(e, sa, d) { const R = await getRutin(e, sa), n = R.filter(r => r.id !== d.id); if (n.length === R.length) throw new Error('tugas rutin tidak ditemukan'); await setRutin(e, sa, n); return 'Tugas rutin dihapus.'; },
   async ubah_setelan(e, sa, d) {
-    const k = ['momen', 'catatanBrand', 'produkNext', 'mode'].filter(x => d && x in d); if (!k.length) throw new Error('tidak ada field setelan yang valid');
+    const k = ['momen', 'catatanBrand', 'produkNext', 'mode', 'metrik', 'sasaran'].filter(x => d && x in d); if (!k.length) throw new Error('tidak ada field setelan yang valid');
     const cur = parseSet(await getDocBy(e, sa, 'aiAgents', 'SETTINGS')), n = cleanSet({ ...cur, ...Object.fromEntries(k.map(x => [x, d[x]])) });
     await setDoc(e, sa, 'aiAgents', 'SETTINGS', { role: 'SETTINGS', json: JSON.stringify(n) }); return 'Setelan diperbarui: ' + k.join(', ') + '.';
   },
@@ -607,6 +635,7 @@ JOBS.KEUANGAN = async (e, sa, { prev, log }) => {
 // ===== Aktivitas santai saat tidak ada tugas (hiburan kantor, BUKAN pekerjaan nyata) =====
 const SANTAI = {
   _: [['📺', 'Nonton YouTube', 'review sneakers & streetwear'], ['📱', 'Scroll TikTok', 'cari tren yang lagi naik'], ['☕', 'Ngopi di pantry', 'nunggu kopi jadi'], ['🎧', 'Dengerin lo-fi', 'sambil goyang kepala'], ['🎮', 'Main game', 'satu ronde dulu'], ['💬', 'Ngobrol santai', 'gosip ringan sama tim'], ['🛋️', 'Rebahan di sofa', 'ngecas energi'], ['🍜', 'Makan mie', 'jam makan nggak ada yang tahu'], ['🚶', 'Keliling kantor', 'peregangan']],
+  PEMASARAN: [['🔎', 'Intip akun streetwear lain', 'riset, katanya'], ['🎙️', 'Dengerin podcast bisnis', 'strategi brand lokal']],
   CREATIVE: [['📺', 'Nonton tutorial', 'YouTube: teknik Photoshop'], ['📌', 'Cari moodboard', 'scroll Pinterest']],
   'KONTEN IG': [['📱', 'Tiktokan', 'riset tren, katanya'], ['🎬', 'Nonton Reels', 'cari inspirasi transisi']],
   SECURITY: [['📺', 'Nonton YouTube', 'walkthrough CTF'], ['🔒', 'Cek gembok pintu', 'kebiasaan lama']],
@@ -651,7 +680,7 @@ export default {
       if (path === '/status' && req.method === 'GET') return out(await statusBody(e));                         // publik, aman
       const tok = (req.headers.get('Authorization') || '').slice(7), em = tok && await admin(e, tok);
       if (!em) return out({ error: 'Bukan admin' }, 403);
-      if (path === '/me' && req.method === 'GET') return out({ ok: true, email: em, penyedia: { gemini: has(e, 'gemini'), groq: has(e, 'groq'), cfai: has(e, 'cfai') }, sa: !!e.FIREBASE_SA, keuangan: !!e.FIREBASE_SA_KEUANGAN, aksi_otomatis: Object.keys(EXEC) });   // gerbang kantor (aichat.js) + cek koneksi
+      if (path === '/me' && req.method === 'GET') return out({ ok: true, email: em, penyedia: { gemini: has(e, 'gemini'), groq: has(e, 'groq'), bansos: has(e, 'bansos'), cfai: has(e, 'cfai') }, sa: !!e.FIREBASE_SA, keuangan: !!e.FIREBASE_SA_KEUANGAN, aksi_otomatis: Object.keys(EXEC) });   // gerbang kantor (aichat.js) + cek koneksi
       // ---- v3: aplikasi HP admin. Semua lewat Worker + service account, jadi tidak bergantung pada rules Firestore. ----
       if (['/ringkasan', '/agen', '/agen/jalankan', '/persetujuan', '/persetujuan/putuskan', '/draf', '/draf/status', '/laporan', '/laporan/buat', '/rutin', '/memori'].includes(path)) {
         if (!e.FIREBASE_SA) return out({ error: 'Secret FIREBASE_SA belum diisi di Cloudflare, jadi fitur ini belum bisa dipakai.' }, 503);

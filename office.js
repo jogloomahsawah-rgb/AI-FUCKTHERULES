@@ -1,9 +1,9 @@
-/* AI OFFICE — di sisi kanan toko, tersambung lewat pintu di dinding kanan (x=8.1, z=1.6).
-   Dibagi jadi ruangan per divisi (MANAGER, OPERASIONAL, MARKETING, DEVELOPMENT, RAPAT, KEUANGAN) dengan koridor di tengah.
+/* AI OFFICE — pulau di sisi kanan toko, tersambung lewat pintu di dinding kanan (x=8.1, z=1.6).
+   Enam paviliun divisi (MANAGER, OPERASIONAL, MARKETING, DEVELOPMENT, RAPAT, KEUANGAN) saling berjarak, dengan PLAZA terbuka di tengah, kolam renang, bar, dan lounge.
    Agen saling samper jalan kaki untuk lapor (daftar di layout.js). Ada juga KASIR-AI dan STOK-BOT. Data = produk publik toko. */
 import { WORKER, WORKER_OK } from './config.js?v=1';
 import { getToken, A } from './aichat.js?v=2';
-import { ROOMS, DOORS, AGENTS, WALLS, joinPath, LINKS, OFFICE_X2 } from './layout.js?v=3';
+import { ROOMS, DOORS, AGENTS, WALLS, joinPath, LINKS, OFFICE_X2, OZ1, OZ2, FLOORS, ZONES, DECOR, SOLIDS, NODES } from './layout.js?v=4';
 
 export function buildOffice(X) {
   const { THREE, scene, M, ctex, tm, T, bx, pln, makeHuman, animHuman, say, S, toast, getHangers, getSolids, lightsQ, SPOTS, STATIC, CM } = X;
@@ -15,24 +15,24 @@ export function buildOffice(X) {
   const woodM = tm(T.wood, 2.6, 1.3, 1.2, { r: .6 });
   /* lantai, plafon, dinding */
   const fT = ctex(256, 256, (c, w) => { c.fillStyle = '#b98a5a'; c.fillRect(0, 0, w, w); for (let i = 0; i < 8; i++) { c.fillStyle = i % 2 ? '#ad7f50' : '#c1935f'; c.fillRect(0, i * 32, w, 30); c.fillStyle = '#8a6038'; c.fillRect(0, i * 32 + 30, w, 2); } });
-  const fl = new THREE.Mesh(new THREE.PlaneGeometry(W, 12.2), tm(fT, W, 12.2, 2.5, { r: .8 })); fl.rotation.x = -Math.PI / 2; fl.position.set(CX, 0, 0); fl.receiveShadow = true; scene.add(fl);
-  const ce = new THREE.Mesh(new THREE.PlaneGeometry(W, 12.2), M({ color: 0xefede8, roughness: 1 })); ce.rotation.x = Math.PI / 2; ce.position.set(CX, 3.4, 0); scene.add(ce);
-  [[11.4, -3], [17.8, -3], [24.3, -3], [11, 1.6], [16, 1.6], [21, 1.6], [26, 1.6], [12.5, 4.4], [16.5, 4.4], [23, 4.4]].forEach(([x, z]) => bx(1.6, .04, .2, basic(0xfff6e8), x, 3.3, z, { rs: false }));
-  bx(W, 3.6, .2, tm(T.wall, W, 3.6, 2), CX, 1.8, -6.1);
-  bx(.2, 3.6, 12.4, tm(T.wall, 12.4, 3.6, 2), X1 + .1, 1.8, 0);
-  bx(W, 3.6, .2, tm(T.brick, W, 3.6, 1.6, { bump: 2, r: .95 }), CX, 1.8, 6.1);
-  [11, 15, 19, 23, 26].forEach(x => { bx(1.7, 1.3, .06, metal, x, 1.9, 5.97); pln(1.6, 1.2, basic(0xbfe4fb), x, 1.9, 5.93, Math.PI); });
+  const D = OZ2 - OZ1, ZC = (OZ1 + OZ2) / 2, mcache = {}, mc = c => mcache[c] || (mcache[c] = M({ color: c, roughness: 1 }));
+  const fl = new THREE.Mesh(new THREE.PlaneGeometry(W, D), tm(fT, W, D, 2.5, { r: .8 })); fl.rotation.x = -Math.PI / 2; fl.position.set(CX, 0, ZC); fl.receiveShadow = true; scene.add(fl);
+  /* pulau di tengah laut: tepi pasir, air di sekelilingnya (tidak ada langit-langit; tiap paviliun punya atap sendiri) */
+  bx(W, .46, D, mc(0xc9b48a), CX, -.24, ZC, { rs: false });
+  { const sea = new THREE.Mesh(new THREE.PlaneGeometry(220, 220), new THREE.MeshBasicMaterial({ color: 0x3bb5e8 })); sea.rotation.x = -Math.PI / 2; sea.position.set(X0 + 105, -.46, ZC); scene.add(sea); }
+  const hedge = mc(0x3f9e55);   // pagar tanaman keliling pulau
+  bx(W - .4, .9, .5, hedge, CX, .45, OZ2 - .25); bx(.5, .9, D, hedge, X1 - .25, .45, ZC); bx(.5, .9, -6.2 - OZ1, hedge, X0 + .25, .45, (OZ1 - 6.2) / 2); bx(.5, .9, OZ2 - 6.2, hedge, X0 + .25, .45, (OZ2 + 6.2) / 2);
+  bx(W, 3.6, .2, tm(T.wall, W, 3.6, 2), CX, 1.8, OZ1 - .1);   // dinding mural di utara pulau
   { const im = new Image(); im.onload = () => {            // mural graffiti FVCK THE RULES (sama dengan toko)
       const t = new THREE.Texture(im); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8; t.needsUpdate = true;
       const mw = 8, mh = mw * im.height / im.width, m = new THREE.Mesh(new THREE.PlaneGeometry(mw, mh), M({ map: t, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }));
-      m.position.set(CX + 1.5, 2.15, -5.99); scene.add(m); }; im.src = 'mural.png'; }
-  pln(3.2, .8, sign('AI OFFICE'), X1 - .02, 2.6, 0, -Math.PI / 2);
+      m.position.set(CX + 1.5, 2.15, OZ1 + .01); scene.add(m); }; im.src = 'mural.png'; }
+  pln(3.2, .8, sign('AI OFFICE'), 14, 2.8, OZ1 + .02, 0);
   /* pintu (dinding kanan toko) */
   [.9, 2.3].forEach(z => bx(.3, 2.5, .1, metal, 8.1, 1.25, z));
   pln(1.2, .3, sign('OFFICE'), 7.98, 2.85, 1.6, -Math.PI / 2); pln(1.2, .3, sign('STORE'), 8.22, 2.85, 1.6, Math.PI / 2);
-  bx(.05, 2.4, 1.3, M({ color: 0x2a2a2e, roughness: .6 }), 8.45, 1.2, 3.0);
-  /* lampu bertingkat: HP / kualitas rendah cukup 2 lampu (lebih terang), kualitas tinggi 4 lampu supaya tiap ruangan merata */
-  [[12.8, -2.2, 1, 26, 15], [22.5, -1.0, 1, 26, 15], [11, 4.4, 2, 15, 15], [21, 4.2, 2, 15, 15]].forEach(([x, z, mq, lo, hi]) => { const l = new THREE.PointLight(0xfff1e0, hi, 14, 2); l.position.set(x, 3, z); l.userData.lo = lo; l.userData.hi = hi; scene.add(l); lightsQ.push([l, mq]); });
+  /* lampu bertingkat: HP / kualitas rendah cukup 2 lampu (lebih terang), kualitas tinggi 4 lampu supaya tiap paviliun merata */
+  [[19, -11, 1, 26, 15], [34.2, -11, 1, 26, 15], [16, 12, 2, 15, 15], [31, 12, 2, 15, 15]].forEach(([x, z, mq, lo, hi]) => { const l = new THREE.PointLight(0xfff1e0, hi, 14, 2); l.position.set(x, 3, z); l.userData.lo = lo; l.userData.hi = hi; scene.add(l); lightsQ.push([l, mq]); });
 
   /* meja + agen */
   const chairM = M({ color: 0x1d3a8a, roughness: .8 });
@@ -45,14 +45,23 @@ export function buildOffice(X) {
     const sc = bx(.44, .28, .01, basic(0x3a5a7a), x, 1.12, z - .17, own); STATIC.push([x - w / 2, z - .5, x + w / 2, z + .5]); return sc; };
   /* ruangan: karpet per divisi, sekat (bawah padat, atas kaca), rangka pintu + papan nama */
   ROOMS.forEach(r => bx(r.x2 - r.x1 - .8, .04, r.z2 - r.z1 - .8, M({ color: r.rug, roughness: 1 }), (r.x1 + r.x2) / 2, .03, (r.z1 + r.z2) / 2, { rs: false }));
+  const roofM = mc(0xefede8);   // atap + lampu tiap paviliun
+  ROOMS.forEach(r => { const cx = (r.x1 + r.x2) / 2, cz = (r.z1 + r.z2) / 2; bx(r.x2 - r.x1 + .8, .16, r.z2 - r.z1 + .8, roofM, cx, 3.42, cz, { rs: false }); bx(1.6, .04, .2, basic(0xfff6e8), cx, 3.3, cz, { rs: false }); });
+  /* lantai area (jalan, plaza, kolam, bar, lounge) + dekorasi pulau dari layout.js (digabung per warna oleh game.js) */
+  const waterM = new THREE.MeshBasicMaterial({ color: 0x35b6ea, transparent: true, opacity: .88 });
+  FLOORS.forEach(([x1, z1, x2, z2, c]) => bx(x2 - x1, .024, z2 - z1, mc(c), (x1 + x2) / 2, .012, (z1 + z2) / 2, { rs: false }));
+  DECOR.forEach(([w, h, d, c, x, y, z, k]) => bx(w, h, d, k === 'w' ? waterM : k === 'g' ? basic(c) : mc(c), x, y, z, { rs: k !== 'g' }));
+  SOLIDS.forEach(r => STATIC.push(r));
+  [['KOLAM RENANG', 39.0, -3.6], ['PLAZA', 15.2, -1.0]].forEach(([t, x, z]) => { bx(.1, 2.6, .1, metal, x + .06, 1.3, z); pln(2.4, .6, sign(t), x, 2.3, z, -Math.PI / 2); });
+  pln(3.4, .8, sign('FVCK BAR'), 43.6, 2.7, 15.7, Math.PI); pln(3, .7, sign('LOUNGE'), 41.8, 2.6, OZ1 + .03, 0);
   const glass = new THREE.MeshBasicMaterial({ color: 0xbfe4fb, transparent: true, opacity: .16, depthWrite: false });
   WALLS.forEach(([x1, z1, x2, z2]) => { const cx = (x1 + x2) / 2, cz = (z1 + z2) / 2, w = Math.max(Math.abs(x2 - x1), .2), d = Math.max(Math.abs(z2 - z1), .2), L = Math.max(w, d);
     bx(w, 1.1, d, tm(T.wall, L, 1.1, 2), cx, .55, cz); bx(w, 1.9, d, glass, cx, 2.05, cz, { rs: false }); bx(w, .1, d, metal, cx, 3.05, cz, { rs: false });
     STATIC.push([Math.min(x1, x2) - .1, Math.min(z1, z2) - .1, Math.max(x1, x2) + .1, Math.max(z1, z2) + .1]); });
   DOORS.forEach(d => { [-1, 1].forEach(sg => bx(.08, 2.4, .24, metal, d.x + sg * d.w / 2, 1.2, d.z)); bx(d.w, .12, .24, metal, d.x, 2.4, d.z);
     pln(1.6, .4, sign(d.name), d.x, 2.78, d.z + d.side * .13, d.side > 0 ? 0 : Math.PI); });
-  /* RAPAT (x 18.4..22.8): meja + 4 kursi, jalur taman di x=19.4 tetap kosong */
-  { const rx = 21.3, rz = 4.4; bx(2.4, .07, 1.2, woodM, rx, .76, rz, { cs: true }); [-1.0, 1.0].forEach(a => [-.5, .5].forEach(b => bx(.06, .72, .06, metal, rx + a, .36, rz + b))); STATIC.push([rx - 1.2, rz - .6, rx + 1.2, rz + .6]);
+  /* RAPAT (paviliun sendiri): meja + 4 kursi */
+  { const rx = 27.9, rz = 12.1; bx(2.4, .07, 1.2, woodM, rx, .76, rz, { cs: true }); [-1.0, 1.0].forEach(a => [-.5, .5].forEach(b => bx(.06, .72, .06, metal, rx + a, .36, rz + b))); STATIC.push([rx - 1.2, rz - .6, rx + 1.2, rz + .6]);
     [[-.6, -1], [.6, -1], [-.6, 1], [.6, 1]].forEach(([a, b]) => chair(rx + a, rz + b * .95, b < 0 ? Math.PI : 0)); }
   const mkLab = () => { const c = document.createElement('canvas'); c.width = 512; c.height = 128; const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
     const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: t, transparent: true, depthWrite: false, fog: false })); s.scale.set(1.6, .4, 1);
@@ -64,6 +73,7 @@ export function buildOffice(X) {
     CREATIVE: [0x8e44ad, ['Tulis caption IG', 'Susun hashtag', 'Brief desain']], 'KONTEN IG': [0xe84393, ['Kalender konten', 'Jadwalkan draft', 'Riset tren']],
     DEVELOPER: [0x2f6bff, ['Review kode', 'Siapkan patch', 'Cek bug checkout']], QA: [0x16a085, ['Tes alur checkout', 'Tes login', 'Cek regresi']],
     SECURITY: [0x2c3e50, ['Cek aturan Firestore', 'Audit akses', 'Scan API key']],
+    PEMASARAN: [0xf5a623, ['Susun strategi pemasaran', 'Riset audiens bola', 'Rencana drop produk']],
     KEUANGAN: [0x1f9d5c, ['Rekap kas harian', 'Cek ongkir kurir', 'Cocokkan order lunas']] };
   const AGS = AGENTS.map((L, i) => {
     const [col, tasks] = INFO[L.role], scr = desk(L.x, L.z, L.w), ch = chair(L.seat[0], L.seat[1] + .02), h = makeHuman({ top: col, pants: 0x1a1a1a, shoes: 0x111111 }); h.g.position.set(L.seat[0], 0, L.seat[1]); h.g.rotation.y = Math.PI; scene.add(h.g);
@@ -80,7 +90,7 @@ export function buildOffice(X) {
 
   /* KEUANGAN: papan grafik hidup di dinding timur, koin berputar di atas meja, layar berdenyut saat kerja */
   const fa = AGS.find(a => a.role === 'KEUANGAN'), fc = document.createElement('canvas'); fc.width = 512; fc.height = 320;
-  const ft = new THREE.CanvasTexture(fc); ft.colorSpace = THREE.SRGBColorSpace; pln(2.8, 1.75, new THREE.MeshBasicMaterial({ map: ft, fog: false }), X1 - .03, 1.9, 4.4, -Math.PI / 2);
+  const ft = new THREE.CanvasTexture(fc); ft.colorSpace = THREE.SRGBColorSpace; pln(2.8, 1.75, new THREE.MeshBasicMaterial({ map: ft, fog: false }), 37.64, 1.9, 12.1, -Math.PI / 2);
   const coinG = new THREE.Group(), coinM = new THREE.Mesh(new THREE.CylinderGeometry(.15, .15, .03, 24), new THREE.MeshBasicMaterial({ color: 0xffc83d })); coinM.rotation.x = Math.PI / 2; coinG.add(coinM); coinG.position.set(fa.L.x, 1.9, fa.L.z - .1); scene.add(coinG);
   const fin = { b: Array(8).fill(.4), tg: Array(8).fill(.4), h: Array.from({ length: 24 }, (_, i) => .5 + Math.sin(i / 3) * .2), t: 0, d: 0 };
   const finDraw = work => { const g = fc.getContext('2d'), W = 512, H = 320; g.fillStyle = '#0a0a0a'; g.fillRect(0, 0, W, H); g.strokeStyle = '#f2f2f2'; g.lineWidth = 6; g.strokeRect(4, 4, W - 8, H - 8);
@@ -100,7 +110,7 @@ export function buildOffice(X) {
 
   /* papan status di dinding */
   const bc = document.createElement('canvas'); bc.width = 512; bc.height = 160; const bt = new THREE.CanvasTexture(bc); bt.colorSpace = THREE.SRGBColorSpace; let tok = 0;
-  pln(2.6, .8, new THREE.MeshBasicMaterial({ map: bt, fog: false }), 10.8, 2.7, -5.97, 0);
+  pln(2.6, .8, new THREE.MeshBasicMaterial({ map: bt, fog: false }), 19, 2.7, OZ1 + .03, 0);
   const drawB = () => { const g = bc.getContext('2d'), n = AGS.filter(a => a.w).length + (bs.wait <= 0 ? 1 : 0) + (ks.st !== 'idle' ? 1 : 0); g.fillStyle = '#0a0a0a'; g.fillRect(0, 0, 512, 160); g.strokeStyle = '#f2f2f2'; g.lineWidth = 6; g.strokeRect(4, 4, 504, 152);
     g.fillStyle = '#e8ff3a'; g.font = '900 40px Impact, sans-serif'; g.textAlign = 'left'; g.fillText('AGEN AKTIF ' + n + '/11', 24, 56); g.fillStyle = '#f2f2f2'; g.font = '26px monospace'; g.fillText('TOKEN ' + tok.toLocaleString('id-ID') + ' · RP 0', 24, 100); g.fillStyle = '#888'; g.font = '20px monospace'; g.fillText('DEMO · BUKAN DATA NYATA', 24, 138); bt.needsUpdate = true; };
 
@@ -116,7 +126,7 @@ export function buildOffice(X) {
   /* KASIR-AI: berdiri di kasir toko, lalu berjalan ke kantor untuk melapor ke MANAGER */
   const kl = mkLab(); kl.draw('KASIR-AI', 'jaga kasir', true);
   const HOME = { x: 5, z: 2.75 };
-  const GO = [HOME, { x: 6.9, z: 2.75 }, { x: 7.3, z: 1.6 }, { x: 9.6, z: 1.6 }, ...AGENTS[0].exit.slice().reverse().map(([x, z]) => ({ x, z }))];   // lewat koridor, masuk pintu ruang MANAGER
+  const GO = [HOME, { x: 6.9, z: 2.75 }, { x: 7.3, z: 1.6 }, ...joinPath([NODES.ENT], AGENTS[0].exit).map(([x, z]) => ({ x, z }))];   // lewat jalan utama + plaza, masuk pintu paviliun MANAGER
   const ks = { st: 'idle', t: 8, i: 0, walk: 0, mv: false, rep: 0, inbox: 0 };
   const kp = CM.g.position, kSpot = { id: 'laporan', x: HOME.x, z: HOME.z, lim: 1.6, t: 'PRESS E · KASIR-AI · LAPORAN', go: () => say('KASIR-AI · LAPORAN', rep(), [['LAPORAN ORDER', orderRep], ['TUTUP']]) };
   SPOTS.push(kSpot);
@@ -186,15 +196,16 @@ export function buildOffice(X) {
           for (const [a, b, c, e] of getSolids()) { const nx = Math.max(a, Math.min(p.x, c)), nz = Math.max(b, Math.min(p.z, e)), ex = p.x - nx, ez = p.z - nz, ds = Math.hypot(ex, ez); if (ds < .35 && ds > 1e-4) { p.x = nx + ex / ds * .35; p.z = nz + ez / ds * .35; } } } } }
     animHuman(bot, bs.walk, bs.mv); bl.position.set(p.x, 2.35, p.z); botSpot.x = p.x; botSpot.z = p.z; }
 
+  const inRoom = (x, z) => ROOMS.some(r => x > r.x1 - .2 && x < r.x2 + .2 && z > r.z1 - .2 && z < r.z2 + .2);
   const nearWall = (x, z) => { for (const [a, b, c, d] of WALLS) if (x > Math.min(a, c) - .32 && x < Math.max(a, c) + .32 && z > Math.min(b, d) - .32 && z < Math.max(b, d) + .32) return true; return false; };
   setInterval(() => { const a = AGS[Math.random() * AGS.length | 0]; if (live || a.v) return; setA(a, !a.w); tok += AGS.filter(q => q.w).length * (40 + Math.random() * 60 | 0); drawB(); }, 1800); drawB();
   return {
     solids: [], state: () => ({ tok, mgrNote: ks.st === 'talk' ? 'menerima laporan kasir' : (Date.now() - ks.inbox < 60000 && ks.inbox ? 'laporan siap dibaca' : ''), agents: AGS.map(a => ({ role: a.role, live, w: a.w, task: a.task, away: !!a.v, x: a.h.g.position.x, z: a.h.g.position.z, mv: a.mv, talk: !!a.v && a.v.st === 'talk', tx: a.v ? a.v.to.L.seat[0] : 0, tz: a.v ? a.v.to.L.seat[1] : 0, note: a.v ? (a.v.st === 'back' ? 'balik ke meja' : a.v.txt + ' → ' + a.v.to.role) : '' })), walkers: [{ role: 'KASIR', x: kp.x, z: kp.z, mv: ks.mv, st: ks.st, w: ks.st !== 'idle', note: ({ idle: 'jaga kasir', out: 'lapor ke manager', talk: 'melapor ke manager', back: 'balik ke kasir' })[ks.st] }, { role: 'STOK', x: bot.g.position.x, z: bot.g.position.z, mv: bs.mv, w: bs.wait <= 0, note: bs.cur ? 'cek ' + bs.cur.p.name.slice(0, 16) : 'patroli stok' }] }), update(t, dt) { visitTick(dt); AGS.forEach(a => { if (a.v) return; const w = a.w ? 1 : 0; a.h.g.position.y = -.36; a.h.L.rotation.x = a.h.R.rotation.x = -1.45;   // duduk di kursi
         a.h.aL.rotation.x = w ? -1.15 + Math.sin(t * 10 + a.i) * .1 : -.5; a.h.aR.rotation.x = w ? -1.15 + Math.cos(t * 9 + a.i) * .1 : -.5; }); kasirTick(dt); botTick(dt); finTick(t, dt); },
-    inside: (x, y, z) => y > .3 && y < 3.2 && ((x > 8.3 && x < X1 - .1 && z > -5.9 && z < 5.9 && !nearWall(x, z)) || (x > 7.75 && x <= 8.3 && z > 1 && z < 2.2)),
+    inside: (x, y, z) => y > .3 && ((y < 3.2 && x > 7.75 && x <= 8.3 && z > 1 && z < 2.2) || (x > 8.3 && x < X1 - .1 && z > OZ1 + .1 && z < OZ2 - .1 && !nearWall(x, z) && y < (inRoom(x, z) ? 3.2 : 9))),
     clamp(p, RW, RZN, RZP) {
       const inDoor = p.z > 1 && p.z < 2.2; p.x = Math.max(-RW + .1, Math.min(X1 - .6, p.x));
       if (!inDoor) p.x = this.side ? Math.max(p.x, 8.3) : Math.min(p.x, RW - .1);
       if (p.x > 7.95) this.side = true; else if (p.x < 7.5) this.side = false;
-      p.z = Math.max(RZN + .1, Math.min(RZP, p.z)); if (p.x > RW - .1 && p.x < 8.3) p.z = Math.max(1, Math.min(2.2, p.z)); }, side: false };
+      if (this.side) p.z = Math.max(OZ1 + .4, Math.min(OZ2 - .4, p.z)); else p.z = Math.max(RZN + .1, Math.min(RZP, p.z)); if (p.x > RW - .1 && p.x < 8.3) p.z = Math.max(1, Math.min(2.2, p.z)); }, side: false };
 }

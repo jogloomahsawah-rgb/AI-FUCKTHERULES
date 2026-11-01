@@ -10,7 +10,9 @@ ALLOWED_ORIGINS = "https://fucktherules.my.id,https://www.fucktherules.my.id,htt
 GEMINI_MODEL = "gemini-flash-latest"   # alias Flash terbaru; gemini-2.5-* sudah ditutup untuk akun baru
 GROQ_MODEL = "openai/gpt-oss-120b"        # sesuai daftar di console.groq.com; cek lagi bila error 404
 CF_MODEL = "@cf/google/gemma-4-26b-a4b-it"  # llama-3.1-8b-instruct dipensiunkan 2026-05-30; cek katalog Workers AI
-MAKER_ORDER = "gemini,groq,cfai"          # semua gratis; cfai (Workers AI) tanpa API key, selalu jadi cadangan terakhir
+MAKER_ORDER = "gemini,groq,bansos,cfai"  # semua gratis; bansos hanya untuk tugas konten/pemasaran tanpa data pelanggan; cfai (Workers AI) selalu cadangan terakhir
+BANSOS_BASE = "https://api.bansosai.app/v1"   # gateway pihak ketiga (BUKAN resmi). Secret: npx wrangler secret put BANSOS_API_KEY
+BANSOS_MODEL = "claude-sonnet-4-5"          # cek ID persis di Model Studio bansosai.app; isi BANSOS_SCOPE = "off" untuk mematikan bansos total
 SITES = "https://fucktherules.my.id,https://game.fucktherules.my.id,https://ai.fucktherules.my.id"  # dicek agen QA
 PRIVATE_COLS = "orders,aiTasks,aiApprovals,aiDrafts"  # harus menolak akses publik (dicek agen SECURITY)
 CROSSCHECK = "on"                           # cek silang untuk CHAT saja

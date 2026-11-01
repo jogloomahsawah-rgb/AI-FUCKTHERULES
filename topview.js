@@ -1,7 +1,7 @@
-// Tampilan ATAS: denah lengkap gaya kardus = TOKO + KANTOR + DAPUR + TAMAN.
-// Tanpa karakter pemain dan tanpa joystick. Geser = putar, dua jari = zoom + geser peta, scroll = zoom.
-// Agen kantor berjalan ke dapur / taman saat tidak ada kerjaan. KASIR dan STOK-BOT mengikuti posisi asli dari office.js.
-import { ROOMS, DOORS, AGENTS, WALLS, BREAK_EXIT, joinPath, OFFICE_X2 } from './layout.js?v=3';
+// Tampilan ATAS: denah lengkap gaya kardus = TOKO + KANTOR (pulau: paviliun, plaza, kolam, bar, lounge).
+// KANTOR = pulau dengan 6 paviliun terpisah + plaza, kolam, bar, lounge. Tanpa karakter pemain dan tanpa joystick. Geser = putar, dua jari = zoom + geser peta, scroll = zoom.
+// Agen kantor berjalan ke kolam / bar / lounge / plaza saat tidak ada kerjaan. KASIR dan STOK-BOT mengikuti posisi asli dari office.js.
+import { ROOMS, DOORS, AGENTS, WALLS, BREAK_EXIT, BREAK_NAME, LEISURE, FLOORS, ZONES, DECOR, joinPath, OFFICE_X2, OZ1, OZ2 } from './layout.js?v=4';
 export function initTopView({ THREE, getState, getHangers, report }) {
   const wrap = document.createElement('div'); wrap.id = 'tv'; wrap.hidden = true;
   wrap.innerHTML = '<canvas></canvas><div class="tv-cards"></div><div class="tv-labels"></div><div class="tv-hint">Geser: putar · cubit: zoom · dua jari: geser peta · ketuk MANAGER untuk laporan</div><div class="tv-rep" hidden><div class="tv-rep-in"><pre></pre><div class="tv-rep-b"><button data-ai>Ringkas dengan AI</button><button data-x>Tutup</button></div></div></div>';
@@ -22,16 +22,16 @@ export function initTopView({ THREE, getState, getHangers, report }) {
   const tile = cvTex(64, (g, n) => { g.fillStyle = '#dedad2'; g.fillRect(0, 0, n, n); g.fillStyle = '#c9c4ba'; g.fillRect(0, 0, n, 2); g.fillRect(0, 0, 2, n); }, 16, 12);
   const tileK = cvTex(64, (g, n) => { g.fillStyle = '#d4ebf2'; g.fillRect(0, 0, n, n); g.fillStyle = '#b9d9e4'; g.fillRect(0, 0, n, 2); g.fillRect(0, 0, 2, n); }, 7, 6);
   const grass = cvTex(64, (g, n) => { g.fillStyle = '#7ccf6a'; g.fillRect(0, 0, n, n); g.fillStyle = '#6dc15c'; for (let i = 0; i < 14; i++) g.fillRect((i * 37) % n, (i * 23) % n, 6, 6); }, 4, 4);
-  floor(-8.1, -6.1, 8.1, 6.1, tile); floor(8.1, -6.1, OFFICE_X2 + .1, 6.1, wood); floor(8.1, 6.1, 15.2, 12.6, tileK); floor(15.2, 6.1, 22.2, 12.6, grass);
-  ROOMS.forEach(r => box(r.x2 - r.x1 - .6, .05, r.z2 - r.z1 - .6, r.rug, (r.x1 + r.x2) / 2, .03, (r.z1 + r.z2) / 2));
-  label('TOKO', -6.2, -5.2); ROOMS.forEach(r => label(r.name, r.lab[0], r.lab[1])); label('DAPUR', 9.8, 11.7); label('TAMAN', 20.6, 7);
+  const sea = new THREE.Mesh(new THREE.BoxGeometry(200, .2, 200), new THREE.MeshLambertMaterial({ color: 0x3bb5e8 })); sea.position.set(30, -.45, 0); sc.add(sea);
+  floor(-8.1, -6.1, 8.1, 6.1, tile); floor(8.1, OZ1, OFFICE_X2, OZ2, wood);
+  FLOORS.forEach(([x1, z1, x2, z2, c]) => box(x2 - x1, .05, z2 - z1, c, (x1 + x2) / 2, .03, (z1 + z2) / 2));
+  ROOMS.forEach(r => box(r.x2 - r.x1 - .6, .05, r.z2 - r.z1 - .6, r.rug, (r.x1 + r.x2) / 2, .06, (r.z1 + r.z2) / 2));
+  label('TOKO', -6.2, -5.2); ROOMS.forEach(r => label(r.name, r.lab[0], r.lab[1])); ZONES.forEach(z => label(z.name, z.lab[0], z.lab[1]));
 
-  /* dinding rendah (denah rumah boneka) */
-  wall(-8.1, -6.1, OFFICE_X2 + .1, -6.1); wall(-8.1, -6.1, -8.1, 6.1); wall(-8.1, 6.1, 8.1, 6.1, 0xbfe0f7, .9);
-  wall(8.1, -6.1, 8.1, .9); wall(8.1, 2.3, 8.1, 6.1); wall(OFFICE_X2 + .1, -6.1, OFFICE_X2 + .1, 6.1);
-  wall(8.1, 6.1, 10.2, 6.1); wall(11.8, 6.1, 18.6, 6.1); wall(20.2, 6.1, OFFICE_X2 + .1, 6.1);
-  wall(8.1, 6.1, 8.1, 12.6); wall(8.1, 12.6, 15.2, 12.6); wall(15.2, 6.1, 15.2, 8.9); wall(15.2, 10.3, 15.2, 12.6);
-  wall(15.2, 12.6, 22.2, 12.6, 0x4aa35a, .8); wall(22.2, 6.1, 22.2, 12.6, 0x4aa35a, .8);
+  /* dinding rendah (denah rumah boneka): toko + pagar tanaman keliling pulau + dinding paviliun dari layout.js */
+  wall(-8.1, -6.1, 8.1, -6.1); wall(-8.1, -6.1, -8.1, 6.1); wall(-8.1, 6.1, 8.1, 6.1, 0xbfe0f7, .9);
+  wall(8.1, -6.1, 8.1, .9); wall(8.1, 2.3, 8.1, 6.1);
+  [[8.1, OZ1, OFFICE_X2, OZ1], [OFFICE_X2, OZ1, OFFICE_X2, OZ2], [8.1, OZ2, OFFICE_X2, OZ2], [8.1, OZ1, 8.1, -6.1], [8.1, 6.1, 8.1, OZ2]].forEach(([x1, z1, x2, z2]) => wall(x1, z1, x2, z2, 0x4aa35a, .8));
   [-4.5, 0, 4.5].forEach(x => box(1.4, .5, .1, 0xbfe0f7, x, .85, -6.0));
   WALLS.forEach(([x1, z1, x2, z2]) => wall(x1, z1, x2, z2, 0xe7e4dc, .9));
 
@@ -43,17 +43,8 @@ export function initTopView({ THREE, getState, getHangers, report }) {
     H.forEach((h, i) => { const g = new THREE.Group(); g.position.set(h.x, 0, h.z); hg.add(g); box(1.1, .04, .4, 0x222222, 0, .02, 0, g); [-.5, .5].forEach(s => box(.05, 1.6, .05, 0x222222, s, .8, 0, g)); box(1.05, .05, .05, 0x222222, 0, 1.55, 0, g);
       for (let k = 0; k < 3; k++) box(.28, .55, .07, PAL[(i + k * 2) % PAL.length], -.3 + k * .3, 1.25, 0, g); }); }
 
-  /* DAPUR */
-  box(.8, .9, 3.4, 0xf4efe2, 8.6, .45, 8.6); box(.9, .06, 3.5, 0x6b5b4b, 8.6, .93, 8.6); box(.4, .5, .4, 0x222222, 8.6, 1.2, 7.6); box(.2, .05, .2, 0xe33b3b, 8.6, 1.47, 7.6); box(.5, .05, .7, 0xbfe0f7, 8.6, .97, 9.6);
-  box(.9, 1.9, .9, 0xeeeeee, 8.7, .95, 11.8); box(.05, .6, .08, 0x888888, 9.18, 1.2, 11.5);
-  box(1.9, .08, 1.1, 0xe3c28f, 12.5, .78, 9.6); [[-.8, -.4], [.8, -.4], [-.8, .4], [.8, .4]].forEach(([a, b]) => box(.08, .74, .08, 0xb79a68, 12.5 + a, .37, 9.6 + b));
-  [[11.9, 10.5], [13.1, 10.5], [12.5, 8.7]].forEach(([x, z]) => { box(.5, .08, .5, 0xd9482b, x, .42, z); box(.08, .4, .08, 0x555555, x, .2, z); }); box(.3, .06, .3, 0xffffff, 12.2, .84, 9.6); box(.3, .06, .3, 0xffffff, 12.9, .84, 9.4);
-
-  /* TAMAN */
-  [[20.6, 8.2, 1], [21.3, 11.3, .8], [16.3, 7.2, .9], [15.9, 11.6, .7]].forEach(([x, z, s]) => { box(.35 * s, 1.4 * s, .35 * s, 0x8a5a3b, x, .7 * s, z); box(1.6 * s, 1.3 * s, 1.6 * s, 0x3f9e55, x, 1.9 * s, z); box(1 * s, .8 * s, 1 * s, 0x4fb868, x, 2.8 * s, z); });
-  box(2.6, .05, 1.9, 0xcbbf9a, 17.4, .03, 9.0); box(2.2, .07, 1.5, 0x6cc3ee, 17.4, .06, 9.0);
-  box(1.9, .12, .5, 0x8a5a3b, 18, .42, 11.45); box(1.9, .5, .1, 0x8a5a3b, 18, .75, 11.8); [-.8, .8].forEach(s => box(.1, .4, .4, 0x6b4428, 18 + s, .2, 11.45));
-  [[19.4, 7.4], [19.4, 8.2], [19.6, 9.0]].forEach(([x, z]) => box(.55, .04, .45, 0xbdb8aa, x, .04, z)); for (let i = 0; i < 6; i++) box(.3, .3, .3, [0xff6b8b, 0xffd23f, 0xffffff][i % 3], 16.2 + i * .9, .16, 12.3);
+  /* dekorasi pulau (kolam, bar, lounge, plaza, pohon): sama dengan kantor 3D, dari layout.js */
+  DECOR.filter(q => q[5] < 3).forEach(([w, h, d, c, x, y, z]) => box(w, h, d, c, x, y, z));   // atap bar (y >= 3) tidak digambar supaya isinya kelihatan dari atas
 
   /* figur kotak: badan, kepala, rambut, tangan, kaki (siap jalan / duduk / mengetik) */
   const hairC = [0x3b2a1e, 0x1a1a2e, 0x8a5a3b, 0x222222, 0x5a3825];
@@ -72,7 +63,7 @@ export function initTopView({ THREE, getState, getHangers, report }) {
   }
 
   /* meja + agen kantor (posisi sama dengan kantor 3D) */
-  const COL = { MANAGER: 0x2b2f3a, COMMERCE: 0xe8643f, LOGISTIK: 0xf0b72a, CREATIVE: 0xa05fc4, 'KONTEN IG': 0xf06fb0, DEVELOPER: 0x5b9cff, QA: 0x2bb89a, SECURITY: 0x5a7088, KEUANGAN: 0x2bb86a };
+  const COL = { MANAGER: 0x2b2f3a, COMMERCE: 0xe8643f, LOGISTIK: 0xf0b72a, CREATIVE: 0xa05fc4, 'KONTEN IG': 0xf06fb0, DEVELOPER: 0x5b9cff, QA: 0x2bb89a, SECURITY: 0x5a7088, KEUANGAN: 0x2bb86a, PEMASARAN: 0xf5a623 };
   const DSK = AGENTS.map(L => [L.role, COL[L.role], L.x, L.z, L.w, L]);
   const AG = DSK.map(([role, col, x, z, w, L], i) => {
     box(w, .08, 1.1, 0xfbf0c9, x, .78, z); [[-1, -.45], [1, -.45], [-1, .45], [1, .45]].forEach(([a, b]) => box(.08, .74, .08, 0xcdbf8f, x + a * (w / 2 - .1), .37, z + b));
@@ -86,11 +77,10 @@ export function initTopView({ THREE, getState, getHangers, report }) {
   [KS, SB].forEach(q => q.fig.g.position.set(q.px, 0, q.pz));
 
   /* tempat santai: jalur dari kursi lewat pintu ruangan + koridor (jalur keluar ada di layout.js) */
-  const SPOTS = [{ x: 9.6, z: 7.6, ry: Math.PI / 2, pose: 'stand', via: 'KI', say: 'ngopi dulu', cup: 1 }, { x: 11.9, z: 10.5, ry: 0, pose: 'sit', via: 'KI', say: 'istirahat makan', cup: 1 }, { x: 13.1, z: 10.5, ry: 0, pose: 'sit', via: 'KI', say: 'ngobrol santai', cup: 1 }, { x: 12.5, z: 8.7, ry: Math.PI, pose: 'sit', via: 'KI', say: 'ngopi santai', cup: 1 },
-    { x: 17.5, z: 11.35, ry: 0, pose: 'sit', via: 'GI', say: 'santai di taman' }, { x: 18.5, z: 11.35, ry: 0, pose: 'sit', via: 'GI', say: 'lihat taman' }, { x: 19.7, z: 8.2, ry: -Math.PI / 2, pose: 'stand', via: 'GI', say: 'cari udara segar' }, { x: 17.4, z: 7.7, ry: Math.PI, pose: 'stand', via: 'GI', say: 'lihat kolam' }];
+  const SPOTS = LEISURE.map(q => ({ ...q }));
   const onBreak = () => AG.filter(a => a.mode !== 'desk').length;
   const turn = (f, to, dt) => { let d = to - f.g.rotation.y; d = Math.atan2(Math.sin(d), Math.cos(d)); f.g.rotation.y += d * Math.min(1, dt * 10); };
-  function leave(a, s) { const nodes = joinPath(a.L.exit, BREAK_EXIT[s.via]); a.path = [a.seat, ...nodes, [s.x, s.z]]; a.back = [[s.x, s.z], ...nodes.slice().reverse(), a.seat]; a.pi = 1; a.spot = s; s.busy = true; a.mode = 'toBreak'; a.say = '→ ' + (s.via === 'KI' ? 'dapur' : 'taman'); }
+  function leave(a, s) { const nodes = joinPath(a.L.exit, BREAK_EXIT[s.via]), wp = s.wp || []; a.path = [a.seat, ...nodes, ...wp, [s.x, s.z]]; a.back = [[s.x, s.z], ...wp.slice().reverse(), ...nodes.slice().reverse(), a.seat]; a.pi = 1; a.spot = s; s.busy = true; a.mode = 'toBreak'; a.say = '→ ' + BREAK_NAME[s.via]; }
   function stepAgent(a, dt, t) {
     const f = a.fig, p = f.g.position;
     if (a.away) {                                   // lagi jalan lapor ke ruangan lain (posisi dari office.js)
@@ -100,7 +90,7 @@ export function initTopView({ THREE, getState, getHangers, report }) {
     if (a.mode === 'visit') { a.mode = 'desk'; a.idleT = 0; a.wait = 4 + Math.random() * 5; p.set(a.seat[0], 0, a.seat[1]); turn(f, 0, dt); }
     if (a.mode === 'desk') {
       a.face.material = mt(a.w ? 0x8fd6ff : 0x3a5a7a); p.set(a.seat[0], 0, a.seat[1]); turn(f, 0, dt); f.cup.visible = false; pose(f, a.w ? 'type' : 'sit', dt, t); a.say = (a.w || a.live) ? a.task : '';
-      if (!a.w) { a.idleT += dt; if (a.idleT > a.wait && onBreak() < 3) { const free = SPOTS.filter(s => !s.busy); if (free.length) { leave(a, free[Math.random() * free.length | 0]); a.idleT = 0; } } } else a.idleT = 0; return; }
+      if (!a.w) { a.idleT += dt; if (a.idleT > a.wait && onBreak() < 4) { const free = SPOTS.filter(s => !s.busy); if (free.length) { leave(a, free[Math.random() * free.length | 0]); a.idleT = 0; } } } else a.idleT = 0; return; }
     a.face.material = mt(0x3a5a7a);
     if (a.mode === 'toBreak' || a.mode === 'toDesk') {
       const w = a.path[a.pi]; if (!w) return; const dx = w[0] - p.x, dz = w[1] - p.z, d = Math.hypot(dx, dz), v = 1.7 * dt; f.cup.visible = false;
@@ -128,7 +118,7 @@ export function initTopView({ THREE, getState, getHangers, report }) {
   }
 
   /* kamera orbit */
-  const O = { th: .55, ph: .95, rad: 40, tx: 10, ty: 0, tz: 3 }, ptr = new Map(); let pd = 0, pm = null;
+  const O = { th: .55, ph: .95, rad: 78, tx: 27, ty: 0, tz: 0 }, ptr = new Map(); let pd = 0, pm = null;
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v)), K = () => cam.aspect < 1 ? 1.4 : 1;
   cv.addEventListener('pointerdown', e => { cv.setPointerCapture(e.pointerId); ptr.set(e.pointerId, [e.clientX, e.clientY]); pd = 0; pm = null; });
   const up = e => { ptr.delete(e.pointerId); pd = 0; pm = null; }; cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
@@ -136,10 +126,10 @@ export function initTopView({ THREE, getState, getHangers, report }) {
     const o = ptr.get(e.pointerId); if (!o) return; const n = [e.clientX, e.clientY];
     if (ptr.size === 1) { O.th -= (n[0] - o[0]) * .007; O.ph = clamp(O.ph - (n[1] - o[1]) * .005, .35, 1.35); ptr.set(e.pointerId, n); return; }
     ptr.set(e.pointerId, n); const [a, b] = [...ptr.values()], d = Math.hypot(a[0] - b[0], a[1] - b[1]), mid = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
-    if (pd) { O.rad = clamp(O.rad * pd / d, 8, 80); const s = O.rad * K() * .0016, dx = mid[0] - pm[0], dy = mid[1] - pm[1], rx = Math.cos(O.th), rz = -Math.sin(O.th), fx = -Math.sin(O.th), fz = -Math.cos(O.th);
-      O.tx = clamp(O.tx + (-rx * dx + fx * dy) * s, -8, 28); O.tz = clamp(O.tz + (-rz * dx + fz * dy) * s, -6, 13); } pd = d; pm = mid;
+    if (pd) { O.rad = clamp(O.rad * pd / d, 8, 130); const s = O.rad * K() * .0016, dx = mid[0] - pm[0], dy = mid[1] - pm[1], rx = Math.cos(O.th), rz = -Math.sin(O.th), fx = -Math.sin(O.th), fz = -Math.cos(O.th);
+      O.tx = clamp(O.tx + (-rx * dx + fx * dy) * s, -8, 48); O.tz = clamp(O.tz + (-rz * dx + fz * dy) * s, -16, 18); } pd = d; pm = mid;
   });
-  cv.addEventListener('wheel', e => { e.preventDefault(); O.rad = clamp(O.rad * (1 + e.deltaY * .001), 8, 80); }, { passive: false });
+  cv.addEventListener('wheel', e => { e.preventDefault(); O.rad = clamp(O.rad * (1 + e.deltaY * .001), 8, 130); }, { passive: false });
 
   let W = 0, H = 0, t = 0; const v3 = new THREE.Vector3();
   return {
