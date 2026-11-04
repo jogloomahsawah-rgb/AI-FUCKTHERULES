@@ -37,7 +37,7 @@ npx wrangler deploy
 Perlu Node.js terpasang (nodejs.org).
 
 ## 4. Firebase (login + database, sudah ada)
-1. Console Firebase -> project `fvcktherules-store` -> **Authentication -> Sign-in method**: pastikan **Google** aktif.
+1. Console Firebase -> project `fvcktherules-store` -> **Authentication -> Sign-in method**: aktifkan **Email/Password** (Google boleh dimatikan). Lalu di tab **Users** klik **Add user** untuk email admin (harus sama dengan `ADMIN_EMAILS`), isi password. Saat pertama masuk, link verifikasi email dikirim otomatis: klik dulu, baru masuk lagi. Kalau akun itu sudah ada dari login Google, pakai **Lupa password?** di halaman login untuk membuat password.
 2. **Authentication -> Settings -> Authorized domains**: tambahkan domain dashboard AI dan `game.fucktherules.my.id`.
 3. **Firestore -> Rules**: tempel isi `firestore.rules.tambahan` ke rules toko (di dalam `match /documents`), lalu **Publish**.
 4. Key Firebase `AIzaSy...` di kode adalah key web publik, bukan rahasia.

@@ -56,7 +56,7 @@ export function initPhone({ onOpen, onClose } = {}) {
     const my = ++seq; app.className = 'ph-app ph-web';
     app.innerHTML = `<div class="ph-bar"><button class="ph-bk" data-back aria-label="Kembali">‹</button><span class="ph-tt">${def.t}</span>${def.flex ? '<span class="ph-sp"></span>' : '<button class="ph-bk" data-refresh aria-label="Muat ulang">⟳</button>'}</div><div class="ai-body ${def.flex ? 'chat' : ''}" id="aiBody"></div>`;
     const body = app.querySelector('#aiBody'); body.onclick = e => { if (e.target.closest('[data-retry]')) renderApp(name); };
-    if (!A.ok) { body.innerHTML = '<div class="ai-empty"><b>Belum masuk</b>Masuk dengan akun Google admin dulu.</div>'; return; }
+    if (!A.ok) { body.innerHTML = '<div class="ai-empty"><b>Belum masuk</b>Masuk dengan email admin dulu.</div>'; return; }
     wrap(def.fn, body, ctx).then(() => { if (my === seq) delete st.kirim; });
   }
   function render() { clock(); root.querySelector('.ph-screen').classList.toggle('home', view === 'home'); view === 'home' ? renderHome() : renderApp(view); }
