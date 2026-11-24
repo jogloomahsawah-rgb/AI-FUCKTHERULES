@@ -12,28 +12,54 @@ const confirm2 = (btn, run, label = 'Yakin?') => { if (btn.dataset.arm) return r
 const guard = (el, f) => async () => { try { await f(); } catch (x) { fail(el, x); } };
 
 /* ---------------- Chat: beri tugas ke agen ---------------- */
-const KEY = 'ftr_ai_chat'; let hist = []; try { hist = JSON.parse(localStorage.getItem(KEY) || '[]').slice(-30); } catch { }
-const save = () => { try { localStorage.setItem(KEY, JSON.stringify(hist.slice(-30))); } catch { } };
+/* Riwayat chat: banyak percakapan, disimpan di browser ini. Peran agen yang terkait ikut tampil bekerja di kantor (3D dan tampak atas). */
+const KEY = 'ftr_ai_chat', CKEY = 'ftr_ai_convs', CUR = 'ftr_ai_cur';
+let convs = [], cur = null;
+try { convs = JSON.parse(localStorage.getItem(CKEY) || '[]'); } catch { }
+if (!convs.length) { let old = []; try { old = JSON.parse(localStorage.getItem(KEY) || '[]'); } catch { } if (old.length) convs.push({ id: 'c' + Date.now().toString(36), title: ((old.find(m => m.role === 'user') || { text: 'Chat' }).text || 'Chat').slice(0, 40), msgs: old, updatedAt: Date.now() }); }
+try { cur = convs.find(c => c.id === localStorage.getItem(CUR)) || convs[0] || null; } catch { cur = convs[0] || null; }
+const saveAll = () => { try { localStorage.setItem(CKEY, JSON.stringify(convs.slice(0, 40).map(c => ({ ...c, msgs: c.msgs.slice(-60) })))); localStorage.setItem(CUR, cur ? cur.id : ''); } catch { } };
+const ROUTE = [[/pemasaran|marketing|promosi|iklan|strategi|sepi|campaign|kampanye|jualan|laris/i, ['PEMASARAN', 'KONTEN IG']], [/konten|\big\b|instagram|caption|postingan|reels|tiktok|upload/i, ['KONTEN IG', 'CREATIVE']], [/desain|visual|poster|kreatif|creative|gambar|foto/i, ['CREATIVE']], [/stok|kirim|pengiriman|resi|ekspedisi|gudang|logistik|paket/i, ['LOGISTIK']], [/keuangan|\buang\b|\bkas\b|laba|rugi|biaya|pengeluaran|pemasukan|omzet/i, ['KEUANGAN']], [/order|pesanan|produk|harga|katalog|pembayaran|lunas|\bdp\b/i, ['COMMERCE']], [/\bbug\b|error|eror|\bweb\b|situs|website|lambat|rusak|fitur|database/i, ['QA', 'DEVELOPER']], [/aman|keamanan|hack|spam|bahaya|phishing/i, ['SECURITY']], [/laporan|ringkas|rangkum|evaluasi|gimana|bagaimana/i, ['ORCHESTRATOR']]];
+const routeRoles = text => { const out = []; ROUTE.forEach(([re, rs]) => { if (re.test(text)) rs.forEach(r => { if (!out.includes(r)) out.push(r); }); }); if (!out.length || (out.length > 1 && !out.includes('ORCHESTRATOR'))) out.push('ORCHESTRATOR'); return out.slice(0, 4); };
+const work = (roles, on, task) => { try { window.fvckOffice && window.fvckOffice.work && window.fvckOffice.work(roles, on, task); } catch { } };
+const jam = ts => new Date(ts || 0).toLocaleString('id-ID', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 const CHIPS = [['Ringkas order', 'Ringkas order: jumlah per status dan yang belum lunas.'], ['Cek stok', 'Cek stok: varian mana yang menipis dan perlu restok?'], ['Cek pengiriman', 'Ringkas kondisi pengiriman dan pelacakan.'], ['Ide konten', 'Buat 1 ide konten Instagram hari ini lalu simpan sebagai draf.'], ['Keuangan', 'Ringkas keuangan bulan ini, bandingkan dengan bulan lalu, dan cek apakah ada order yang belum tersinkron ke keuangan.'], ['Kondisi sistem', 'Cek situs dan database, lalu ringkas laporan agen terbaru.']];
 export function chat(el, ctx) {
-  el.innerHTML = `<div class="ai-chips">${CHIPS.map(([n], i) => `<button data-c="${i}">${n}</button>`).join('')}</div><div class="ai-msgs" id="aiM"></div>
+  el.innerHTML = `<div class="ai-hbar"><button class="ai-hb" data-h>☰ Riwayat</button><b class="ai-ttl" id="aiT"></b><button class="ai-hb" data-new>＋ Baru</button></div><div class="ai-hist" id="aiH" hidden></div><div class="ai-crew" id="aiC" hidden></div>
+  <div class="ai-chips">${CHIPS.map(([n], i) => `<button data-c="${i}">${n}</button>`).join('')}</div><div class="ai-msgs" id="aiM"></div>
   <form class="ai-form" id="aiF"><input id="aiQ" placeholder="Beri tugas atau tanya…" autocomplete="off"><button class="ai-send">Kirim</button></form>`;
-  const M = el.querySelector('#aiM'), bub = (t, me, extra = '') => { M.insertAdjacentHTML('beforeend', `<div class="ai-b ${me ? 'me' : ''}">${esc(t)}${extra}</div>`); M.scrollTop = 1e9; return M.lastChild; };
+  const M = el.querySelector('#aiM'), H = el.querySelector('#aiH'), CR = el.querySelector('#aiC'), T = el.querySelector('#aiT'), bub = (t, me, extra = '') => { M.insertAdjacentHTML('beforeend', `<div class="ai-b ${me ? 'me' : ''}">${esc(t)}${extra}</div>`); M.scrollTop = 1e9; return M.lastChild; };
   if (!WORKER_OK) return bub('URL Worker belum diisi di config.js.');
-  if (!hist.length) bub('Halo admin. Beri aku tugas: cek order, stok, pengiriman, bikin draf konten, atau jadwalkan tugas rutin. Aku ambil data nyata lewat tool; perubahan penting selalu minta persetujuanmu.');
-  hist.forEach(m => bub(m.text, m.role === 'user', m.extra || ''));
   let busy = false;
+  const paintTitle = () => { T.textContent = cur ? cur.title : 'Chat baru'; };
+  const paintMsgs = () => { M.innerHTML = ''; if (!cur || !cur.msgs.length) bub('Halo admin. Beri aku tugas: cek order, stok, pengiriman, bikin draf konten, atau jadwalkan tugas rutin. Aku ambil data nyata lewat tool; perubahan penting selalu minta persetujuanmu. Agen yang terkait akan terlihat bekerja di kantor.'); else cur.msgs.forEach(m => bub(m.text, m.role === 'user', m.extra || '')); paintTitle(); };
+  const paintHist = () => { H.innerHTML = (convs.length ? [...convs].sort((x, y) => y.updatedAt - x.updatedAt).map(c => `<div class="ai-hi"><button class="o ${cur && cur.id === c.id ? 'on' : ''}" data-o="${esc(c.id)}">${esc(c.title)}<small>${esc(jam(c.updatedAt))} · ${c.msgs.length} pesan</small></button><button class="d" data-d="${esc(c.id)}" aria-label="Hapus">🗑</button></div>`).join('') : '<small class="mute" style="padding:8px;display:block">Belum ada riwayat.</small>'); };
+  const showCrew = roles => { CR.hidden = !roles || !roles.length; CR.innerHTML = (roles || []).map(r => `<span class="ai-ag">${esc(r)} bekerja <span class="ai-dots"><i></i><i></i><i></i></span></span>`).join(''); };
+  paintMsgs();
   const send = async t => {
-    if (!t || busy) return; busy = true; hist.push({ role: 'user', text: t }); bub(t, true); const w = bub('Mengerjakan…'); w.classList.add('wait');
+    if (!t || busy) return; busy = true;
+    if (!cur) { cur = { id: 'c' + Date.now().toString(36), title: t.slice(0, 40), msgs: [], updatedAt: Date.now() }; convs.unshift(cur); }
+    cur.msgs.push({ role: 'user', text: t, ts: Date.now() }); if (M.firstChild && cur.msgs.length === 1) M.innerHTML = ''; bub(t, true); H.hidden = true; paintTitle();
+    const w = bub('Mengerjakan…'); w.classList.add('wait'); const roles = routeRoles(t), t0 = Date.now();
+    showCrew(roles); roles.forEach((r, i) => setTimeout(() => { if (busy) work([r], true, t); }, i * 900));
+    const tm = setInterval(() => { if (w.firstChild) w.firstChild.nodeValue = 'Mengerjakan… ' + Math.round((Date.now() - t0) / 1000) + ' dtk'; }, 1000);
     try {
-      const j = await api('/chat', { messages: hist.map(({ role, text }) => ({ role, text })) }), c = j.cek, steps = [...new Set((j.log || []).filter(x => /^\w+:\w+$/.test(x)).map(x => x.split(':')[1]))];
-      const extra = (steps.length ? `<div class="ai-steps">Langkah agen: ${steps.map(esc).join(' → ')}</div>` : '') + (c ? `<div class="ai-steps">${esc(c.maker)}${c.checker ? ' → dicek ' + esc(c.checker) + ': ' + esc(c.verdict) : ' · ' + esc(c.verdict)}</div>` : '') + (steps.includes('ajukan_aksi') ? '<button class="ai-btn" data-go="persetujuan">Buka Persetujuan</button>' : '');
-      w.remove(); const reply = j.reply || 'Tidak ada jawaban.'; hist.push({ role: 'model', text: reply, extra }); bub(reply, false, extra);
-    } catch (x) { w.remove(); hist.pop(); bub('Gagal: ' + x.message + (x.log?.length ? '\n\nDetail:\n- ' + x.log.join('\n- ') : '')); }
-    save(); busy = false;
+      const j = await api('/chat', { messages: cur.msgs.slice(-30).map(({ role, text }) => ({ role, text })) }), c = j.cek, steps = [...new Set((j.log || []).filter(x => /^\w+:\w+$/.test(x)).map(x => x.split(':')[1]))];
+      const extra = (steps.length ? `<div class="ai-steps">Langkah agen: ${steps.map(esc).join(' → ')}</div>` : '') + `<div class="ai-steps">Dikerjakan: ${roles.map(esc).join(', ')}</div>` + (c ? `<div class="ai-steps">${esc(c.maker)}${c.checker ? ' → dicek ' + esc(c.checker) + ': ' + esc(c.verdict) : ' · ' + esc(c.verdict)}</div>` : '') + (steps.includes('ajukan_aksi') ? '<button class="ai-btn" data-go="persetujuan">Buka Persetujuan</button>' : '');
+      w.remove(); const reply = j.reply || 'Tidak ada jawaban.'; cur.msgs.push({ role: 'model', text: reply, extra, ts: Date.now() }); bub(reply, false, extra);
+    } catch (x) { w.remove(); cur.msgs.pop(); bub('Gagal: ' + x.message + (x.log?.length ? '\n\nDetail:\n- ' + x.log.join('\n- ') : '')); }
+    clearInterval(tm); work(roles, false); showCrew(null); cur.updatedAt = Date.now(); saveAll(); busy = false; paintTitle();
   };
   el.querySelector('#aiF').onsubmit = e => { e.preventDefault(); const q = el.querySelector('#aiQ'), t = q.value.trim(); q.value = ''; send(t); };
-  el.addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; if (b.dataset.c) send(CHIPS[+b.dataset.c][1]); if (b.dataset.go) ctx.go(b.dataset.go); });
+  el.addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return;
+    if (b.dataset.c) send(CHIPS[+b.dataset.c][1]);
+    if (b.dataset.go) ctx.go(b.dataset.go);
+    if (b.dataset.h !== undefined) { H.hidden = !H.hidden; if (!H.hidden) paintHist(); }
+    if (b.dataset.new !== undefined) { if (busy) return; cur = null; saveAll(); H.hidden = true; paintMsgs(); }
+    if (b.dataset.o) { if (busy) return; cur = convs.find(c => c.id === b.dataset.o) || cur; saveAll(); H.hidden = true; paintMsgs(); }
+    if (b.dataset.d) { if (busy) return; if (!confirm('Hapus percakapan ini?')) return; convs = convs.filter(c => c.id !== b.dataset.d); if (cur && cur.id === b.dataset.d) cur = null; saveAll(); paintHist(); paintMsgs(); }
+  });
   if (ctx.kirim) send(ctx.kirim);
 }
 

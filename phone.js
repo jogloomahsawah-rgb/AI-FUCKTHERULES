@@ -1,6 +1,6 @@
 // phone.js — "HP" admin di dalam AI OFFICE. Hanya aplikasi AI (lihat aiapps.js); aplikasi toko/berita/lacak sengaja dibuang.
 import { A, api, WORKER_OK } from './aichat.js?v=2';
-import { APPS, wrap } from './aiapps.js?v=2';
+import { APPS, wrap } from './aiapps.js?v=3';
 
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const svg = p => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;

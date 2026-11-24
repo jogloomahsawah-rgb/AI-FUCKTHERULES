@@ -81,12 +81,13 @@ export function buildOffice(X) {
     SPOTS.push({ id: 'ag' + i, x: L.vis[0], z: L.vis[1], lim: 1.3, t: i === 0 ? 'PRESS E · MANAGER · LAPORAN' : `PRESS E · ${L.role} (AI)`, go: () => i === 0 ? mgrOpen() : say(L.role + ' · AI · ' + L.room, (a.v ? 'Sedang jalan: ' + a.v.txt + ' ke ' + a.v.to.role : a.w ? 'Sedang: ' + a.task : live ? a.task : 'Standby.') + '\n\n' + (live ? (a.det ? a.det + '\n\n' : '') + 'Status dari Worker (jadwal nyata). Aktivitas santai hanya hiburan kantor.' : 'Status agen di kantor ini masih simulasi.') + '') });
     return a; });
   let live = false;   // true setelah status nyata dari Worker berhasil dibaca
+  const HOLD = {};    // peran yang sedang dikerjakan lewat chat: tidak ditimpa polling status
   const setA = (a, w, task) => { a.w = w; a.task = task || a.tasks[Math.random() * a.tasks.length | 0]; a.scr.material.color.set(w ? 0x7fd0ff : 0x3a5a7a); a.l.draw(a.role, (w || live) ? a.task.slice(0, 22) : 'standby', w); };
   AGS.forEach((a, i) => setA(a, i < 3));
   const pollLive = async () => { if (!WORKER_OK) return; try { const r = await fetch(WORKER + '/status'); if (!r.ok) return; const j = await r.json(); live = true;
-    (j.agents || []).forEach(q => { const a = AGS.find(z => z.role === (q.role === 'ORCHESTRATOR' ? 'MANAGER' : q.role)); if (a && !a.v) { a.det = q.emoji + ' ' + q.ket; setA(a, q.mode === 'kerja', q.aktivitas); } }); } catch { } };
+    (j.agents || []).forEach(q => { const a = AGS.find(z => z.role === (q.role === 'ORCHESTRATOR' ? 'MANAGER' : q.role)); if (a && !a.v && !HOLD[a.role]) { a.det = q.emoji + ' ' + q.ket; setA(a, q.mode === 'kerja', q.aktivitas); } }); } catch { } };
   pollLive(); setInterval(pollLive, 60000);
-  window.fvckOffice = { markBreak: role => { brk[role] = performance.now(); }, report: ai => ai ? mgrAI() : Promise.resolve(mgrText()), update: (role, o) => { if (role === 'ORCHESTRATOR') role = 'MANAGER'; const a = AGS.find(q => q.role === role); if (a) setA(a, o.status === 'working', o.task); } };
+  window.fvckOffice = { work: (roles, on, task) => { (roles || []).forEach(r => { const k = r === 'ORCHESTRATOR' ? 'MANAGER' : r, a = AGS.find(q => q.role === k); if (!a) return; if (on) HOLD[k] = 1; else delete HOLD[k]; setA(a, !!on, on ? String(task || '').slice(0, 60) : undefined); }); }, markBreak: role => { brk[role] = performance.now(); }, report: ai => ai ? mgrAI() : Promise.resolve(mgrText()), update: (role, o) => { if (role === 'ORCHESTRATOR') role = 'MANAGER'; const a = AGS.find(q => q.role === role); if (a) setA(a, o.status === 'working', o.task); } };
 
   /* KEUANGAN: papan grafik hidup di dinding timur, koin berputar di atas meja, layar berdenyut saat kerja */
   const fa = AGS.find(a => a.role === 'KEUANGAN'), fc = document.createElement('canvas'); fc.width = 512; fc.height = 320;

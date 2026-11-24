@@ -1,7 +1,7 @@
 import { initTopView } from './topview.js?v=7';
 import { S, initShop, bindUI, openCatalog, openProduct, openCart, openCheckout, openReceipt, hasReceipt, closePanel, panelOpen, cartCount, showRaw, getBannerText, rp, MAIN_ORIGIN, logout, esc } from './shop.js?v=20261032';
 import { initPhone } from './phone.js?v=20261110';
-import { buildOffice } from './office.js?v=9';
+import { buildOffice } from './office.js?v=10';
 let OFF = null;
 const $ = s => document.querySelector(s);
 const cv = $('#game');
