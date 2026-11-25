@@ -2,7 +2,7 @@
 // TIDAK ada katalog/harga/ID order buatan sendiri: semua dari Firestore project fvcktherules-store.
 export const MAIN_ORIGIN = 'https://fucktherules.my.id';
 const FB_URL = MAIN_ORIGIN + '/firebase.js?v=20261030';          // modul yang sama dengan website utama (satu sumber kebenaran)
-const GAS_ORDER_BACKUP = 'https://script.google.com/macros/s/AKfycbz3vRP4hkKjzv7b_lc3Qq6N5bhXZk44WJZd19fTNJNblwiGBGDH8uw0LKrFckqosBxtzw/exec';
+const GAS_ORDER_BACKUP = 'https://script.google.com/macros/s/AKfycbypW_Y9MnUwXrC0kePXDn-IkSmYW23a5--sMcjzLBahNcXsq9XXsmP3MSPYYnKBd3x56g/exec';
 const GAS_BITESHIP = 'https://script.google.com/macros/s/AKfycbyDTEPvP5yndja35U02nkC4lsYRy3vQqVe2s4NTx-MxBE8MCSB9co2ztG5ZDMtJzuAO/exec';
 const WILAYAH = 'https://www.emsifa.com/api-wilayah-indonesia/v2';
 // Salinan dari index.html website utama (di sana hardcoded, bukan di config). Ubah di sini jika rekening berubah.
